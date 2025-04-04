@@ -7,7 +7,9 @@ import getpass # Alternativa para obter o usuário atual
 # import pwd # Removido - Não funciona no Windows
 import psutil # Para obter estatísticas do sistema
 import threading
+import pwd # Para obter nome de usuário (Linux) - Adicionado para permissões
 import time
+import shutil # Para verificar permissões de escrita
 from datetime import datetime, timedelta, timezone
 from functools import wraps # Para criar decorators
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
@@ -186,6 +188,108 @@ def log_system_stats():
 
     except Exception as e:
         print(f"Erro ao coletar/logar estatísticas do sistema: {e}")
+
+def set_directory_permissions(directory_path, username):
+    """Define o dono do diretório para o usuário especificado (Linux apenas)."""
+    if platform.system() != 'Linux':
+        print("Skipping permission setting on non-Linux system.")
+        return True # Considera sucesso em não-Linux
+
+    if not os.path.exists(directory_path):
+        flash(f"Erro interno: Diretório '{directory_path}' não encontrado para definir permissões.", "error")
+        return False
+
+    # Verifica se o usuário do sistema existe
+    try:
+        pwd.getpwnam(username)
+    except KeyError:
+        flash(f"Aviso: Usuário do sistema '{username}' não encontrado. Não foi possível definir permissões na pasta '{directory_path}'.", 'warning')
+        return False # Falha pois o usuário não existe no OS
+
+    print(f"Definindo permissões para {username} em {directory_path}")
+    # -R para recursivo
+    result = run_command(['sudo', 'chown', '-R', f'{username}:{username}', directory_path], check=False)
+    if result and result.returncode == 0:
+        # Opcional: Definir permissões mais específicas (ex: 755 para diretórios, 644 para arquivos)
+        # run_command(['sudo', 'chmod', 'u+rwX,go+rX,go-w', directory_path], check=False) # Exemplo: drwxr-xr-x
+        flash(f"Permissões definidas para o usuário '{username}' no diretório '{directory_path}'.", 'info')
+        return True
+    else:
+        flash(f"Falha ao definir permissões para '{username}' em '{directory_path}'. Detalhes: {result.stderr if result else 'N/A'}", 'error')
+        return False
+
+def create_home_symlink(target_path, username, site_domain):
+    """Cria um link simbólico na home do usuário apontando para o target_path (Linux apenas)."""
+    if platform.system() != 'Linux':
+        print("Skipping symlink creation on non-Linux system.")
+        return True
+
+    if not os.path.exists(target_path):
+        flash(f"Erro interno: Diretório de destino '{target_path}' não encontrado para criar link simbólico.", "error")
+        return False
+
+    # Gera um nome seguro para o link a partir do domínio
+    site_link_name = site_domain.replace('.', '-')
+
+    # Obtém o diretório home do usuário
+    try:
+        user_info = pwd.getpwnam(username)
+        home_dir = user_info.pw_dir
+        user_uid = user_info.pw_uid
+        user_gid = user_info.pw_gid
+    except KeyError:
+        flash(f"Aviso: Usuário do sistema '{username}' não encontrado. Não foi possível criar link simbólico na home.", 'warning')
+        return False # Usuário não existe no OS
+
+    symlink_path = os.path.join(home_dir, site_link_name)
+
+    # Verifica se o link já existe
+    if os.path.lexists(symlink_path): # Use lexists para detectar links quebrados também
+        # Verifica se já aponta para o lugar certo
+        if os.path.islink(symlink_path) and os.readlink(symlink_path) == target_path:
+             print(f"Link simbólico '{symlink_path}' já existe e aponta corretamente.")
+             return True
+        else:
+            flash(f"Aviso: Já existe um arquivo ou link inválido em '{symlink_path}'. Link simbólico não foi criado.", 'warning')
+            return False # Impede a sobrescrita
+
+    # Verifica se o diretório home existe e tem permissão de escrita para o usuário
+    if not os.path.isdir(home_dir) or not os.access(home_dir, os.W_OK, effective_ids=True):
+         # Tenta garantir que o dono do home é o próprio usuário (pode falhar se home for montado de forma estranha)
+         run_command(['sudo', 'chown', f'{username}:{username}', home_dir], check=False)
+         # Verifica de novo após tentar corrigir
+         if not os.path.isdir(home_dir) or not os.access(home_dir, os.W_OK, effective_ids=True):
+             # Tenta criar como root e mudar dono (menos ideal)
+             print(f"Aviso: Diretório home '{home_dir}' inacessível ou sem permissão de escrita para {username}. Tentando criar link como root e ajustar dono.")
+             result_ln = run_command(['sudo', 'ln', '-s', target_path, symlink_path], check=False)
+             if result_ln and result_ln.returncode == 0:
+                result_chown = run_command(['sudo', 'chown', '-h', f'{username}:{username}', symlink_path], check=False) # -h para não seguir o link
+                if result_chown and result_chown.returncode == 0:
+                     flash(f"Link simbólico criado em '{symlink_path}' (como root e dono ajustado).", 'info')
+                     return True
+                else:
+                    flash(f"Falha ao ajustar dono do link simbólico '{symlink_path}' após criação.", 'error')
+                    run_command(['sudo', 'rm', symlink_path], check=False) # Tenta limpar
+                    return False
+             else:
+                flash(f"Falha ao criar link simbólico '{symlink_path}' (mesmo como root).", 'error')
+                return False
+
+
+    print(f"Criando link simbólico em {symlink_path} para {target_path} como usuário {username}")
+    # Tenta criar o link como o próprio usuário usando sudo -u
+    # Isso garante que o link pertença ao usuário correto desde o início
+    result = run_command(['sudo', '-u', username, 'ln', '-s', target_path, symlink_path], check=False)
+
+    if result and result.returncode == 0:
+        flash(f"Link simbólico criado com sucesso em '{symlink_path}'.", 'success')
+        return True
+    else:
+        flash(f"Falha ao criar link simbólico em '{symlink_path}'. Detalhes: {result.stderr if result else 'N/A'}", 'error')
+        # Tenta verificar se o diretório home tem permissão de escrita para o usuário
+        if not os.access(home_dir, os.W_OK):
+             flash(f"Verifique as permissões de escrita no diretório home: {home_dir}", "warning")
+        return False
 
 
 def run_logging_scheduler():
@@ -731,13 +835,40 @@ def add_site():
          flash(f"Site {domain} criado com sucesso (HTTP apenas).", 'success')
 
 
-    # 6. Salvar dados do site
-    sites.append(new_site_data)
+    # Adiciona o usuário que criou o site aos dados
+    new_site_data['created_by_user'] = session.get('username')
+
+    # 6. Salvar dados do site (ANTES de permissões/link para ter o registro mesmo se falharem)
+    sites.append(new_site_data) # REMOVIDA A LINHA DUPLICADA AQUI
     save_sites(sites)
 
-    # 7. Redirecionar para a página inicial
+    # --- Passos Adicionais: Permissões e Link Simbólico (APÓS salvar no JSON) ---
+    if platform.system() == 'Linux':
+        logged_in_user = session.get('username')
+        target_directory = None
+        if site_type == 'php' and path:
+            target_directory = path
+        elif site_type == 'python_node' and workdir: # Usa workdir se fornecido
+            target_directory = workdir
+        elif site_type == 'python_node' and path: # Fallback para path se workdir não foi dado mas path existe (caso de guess)
+             target_directory = path
+
+        if logged_in_user and target_directory:
+             print(f"Tentando aplicar pós-configuração para usuário '{logged_in_user}' e diretório '{target_directory}'")
+             # 7. Definir permissões no diretório para o usuário logado
+             set_directory_permissions(target_directory, logged_in_user)
+
+             # 8. Criar link simbólico na home do usuário logado
+             create_home_symlink(target_directory, logged_in_user, domain)
+        else:
+             print("Skipping permission/symlink steps: Linux only, requires logged-in user and target directory.")
+             if not logged_in_user: flash("Não foi possível determinar o usuário logado para permissões/link.", "warning")
+             if not target_directory: flash("Diretório alvo não determinado para permissões/link.", "warning")
+
+    # 9. Redirecionar para a página inicial
     # Flash messages já foram adicionadas pelas funções auxiliares
     return redirect(url_for('index'))
+
 
 @app.route('/delete_site/<domain>', methods=['POST'])
 @login_required
@@ -784,12 +915,57 @@ def delete_site(domain):
     sites = [s for s in sites if s['domain'] != domain]
     save_sites(sites)
 
-    # TODO: Opcional - Remover diretório root (para PHP) ou diretório de trabalho?
-    # Isso pode ser perigoso, então deixamos comentado por padrão.
-    # if site_to_delete.get('path'):
-    #     run_command(['sudo', 'rm', '-rf', site_to_delete['path']], check=False) # MUITO CUIDADO!
+    # --- Passos Adicionais de Remoção (Pós JSON) ---
 
-    flash(f"Site '{domain}' removido com sucesso (ou tentativa de remoção iniciada).", 'success')
+    created_by_user = site_to_delete.get('created_by_user')
+    directory_to_remove = None
+    if site_to_delete.get('type') == 'php':
+        directory_to_remove = site_to_delete.get('path')
+    elif site_to_delete.get('type') == 'python_node':
+        directory_to_remove = site_to_delete.get('workdir') # Prioriza workdir para apps
+
+    # 5. Remover Link Simbólico da Home (Linux apenas)
+    if platform.system() == 'Linux' and created_by_user:
+        try:
+            site_link_name = domain.replace('.', '-')
+            user_info = pwd.getpwnam(created_by_user)
+            symlink_path = os.path.join(user_info.pw_dir, site_link_name)
+            if os.path.islink(symlink_path): # Verifica se é um link antes de tentar remover
+                print(f"Tentando remover link simbólico: {symlink_path}")
+                result_rm_link = run_command(['sudo', 'rm', symlink_path], check=False)
+                if result_rm_link and result_rm_link.returncode == 0:
+                    flash(f"Link simbólico '{symlink_path}' removido da home de '{created_by_user}'.", 'info')
+                else:
+                    flash(f"Falha ao remover link simbólico '{symlink_path}'. Detalhes: {result_rm_link.stderr if result_rm_link else 'N/A'}", 'warning')
+            # else: # Opcional: Informar se o link não existia
+            #    print(f"Link simbólico '{symlink_path}' não encontrado ou não é um link.")
+        except KeyError:
+            flash(f"Aviso: Usuário do sistema '{created_by_user}' associado ao site não encontrado. Não foi possível remover o link simbólico da home.", 'warning')
+        except Exception as e:
+            print(f"Erro ao tentar remover link simbólico para {domain} do usuário {created_by_user}: {e}")
+            flash(f"Aviso: Erro inesperado ao tentar remover o link simbólico para {domain}.", 'warning')
+
+    # 6. Remover Diretório do Site (/var/www/... ou workdir) - AÇÃO DESTRUTIVA!
+    if directory_to_remove:
+        # AVISO IMPORTANTE!
+        flash(f"AVISO: Tentando remover o diretório do site '{directory_to_remove}'. Esta ação é PERMANENTE e IRREVERSÍVEL!", "danger")
+        print(f"Tentando remover o diretório recursivamente: {directory_to_remove}")
+        # Verifica se o diretório existe antes de tentar remover
+        if os.path.isdir(directory_to_remove):
+            # Usa sudo rm -rf pois pode ter sido criado por root ou outro usuário
+            result_rm_dir = run_command(['sudo', 'rm', '-rf', directory_to_remove], check=False)
+            if result_rm_dir and result_rm_dir.returncode == 0:
+                flash(f"Diretório '{directory_to_remove}' removido com sucesso.", 'success') # Mudei para success para clareza
+            else:
+                flash(f"ERRO: Falha ao remover o diretório '{directory_to_remove}'. Verifique permissões ou remova manualmente. Detalhes: {result_rm_dir.stderr if result_rm_dir else 'N/A'}", 'error')
+        else:
+             flash(f"Diretório '{directory_to_remove}' não encontrado ou não é um diretório. Remoção do diretório pulada.", 'info')
+    else:
+         print(f"Nenhum diretório principal (path/workdir) associado encontrado no JSON para remoção do site {domain}.")
+
+
+    flash(f"Site '{domain}' removido do painel. Tentativa de remoção de serviço, configurações Nginx, link simbólico e diretório realizada.", 'success') # Mensagem final ajustada
+
     return redirect(url_for('index'))
 
 
@@ -815,27 +991,77 @@ def users_management_page(): # Renomeei a função para evitar conflito interno 
 @login_required
 @admin_required
 def add_user():
-    """Adiciona um novo usuário (apenas para 'cico')."""
+    """Adiciona um novo usuário ao painel e ao sistema (Linux)."""
     username = request.form.get('new_username', '').strip()
     password = request.form.get('new_password', '').strip()
 
     if not username or not password:
         flash("Nome de usuário e senha são obrigatórios.", 'error')
-        # Redireciona de volta para a página de gerenciamento, que mostrará a aba usuários ativa
         return redirect(url_for('users_management_page'))
 
-    users_list = load_users() # Renomeei para evitar conflito
+    if username == 'cico': # Impede criação duplicada do admin
+         flash("Não é permitido criar outro usuário com o nome 'cico'.", 'error')
+         return redirect(url_for('users_management_page'))
+
+    users_list = load_users()
     if any(u['username'] == username for u in users_list):
-        flash(f"Erro: O nome de usuário '{username}' já está em uso.", 'error')
-        # Redireciona de volta para a página de gerenciamento, que mostrará a aba usuários ativa
-        # A rota 'users_management_page' garante que active_tab='users' seja passado ao template.
+        flash(f"Erro: O nome de usuário '{username}' já está em uso no painel.", 'error')
         return redirect(url_for('users_management_page'))
 
-    # IMPORTANTE: Sem hashing de senha conforme solicitado
-    users_list.append({"username": username, "password": password})
-    save_users(users_list)
-    flash(f"Usuário '{username}' adicionado com sucesso.", 'success')
-    # Redireciona de volta para a página de gerenciamento (aba usuários ativa)
+    system_user_created = False
+    if platform.system() == 'Linux':
+        # 1. Tentar criar o usuário no sistema
+        #    -m: Cria diretório home
+        #    -s /bin/bash: Permite login interativo (SSH). Use /sbin/nologin se o usuário não precisar de acesso SSH.
+        #    -m: Cria o diretório home
+        print(f"Tentando criar usuário do sistema: {username}")
+        cmd_useradd = ['sudo', 'useradd', '-m', '-s', '/bin/bash', username] # Permite login interativo (SSH)
+        result_useradd = run_command(cmd_useradd, check=False) # check=False para tratar erro manualmente
+
+        if result_useradd is not None and result_useradd.returncode == 0:
+            # 2. Tentar definir a senha do usuário do sistema
+            print(f"Usuário {username} criado, definindo senha...")
+            # Usa chpasswd para definir a senha de forma não interativa
+            # CUIDADO: Isso envolve passar a senha via pipe ou similar.
+            cmd_passwd = f"echo '{username}:{password}' | sudo chpasswd"
+            # run_command atual não lida bem com pipes no comando diretamente, usamos shell=True com cuidado
+            result_passwd = run_command(cmd_passwd, check=False, shell=True)
+
+            if result_passwd is not None and result_passwd.returncode == 0:
+                print(f"Senha definida para o usuário do sistema {username}.")
+                system_user_created = True
+            else:
+                # Falha ao definir senha: tenta remover o usuário criado para não deixar órfão
+                flash(f"Erro ao definir a senha para o usuário do sistema '{username}'. Removendo usuário criado...", 'error')
+                print(f"Erro ao definir senha para {username}. Tentando remover com userdel...")
+                run_command(['sudo', 'userdel', '-r', username], check=False) # Tenta remover, ignora falha aqui
+                # Não salva no JSON e redireciona com erro
+                return redirect(url_for('users_management_page'))
+        else:
+            # Falha ao criar usuário (pode já existir no sistema, ou outro erro)
+            error_msg = f"Erro ao criar o usuário do sistema '{username}'."
+            if result_useradd and "já existe" in result_useradd.stderr.lower():
+                 error_msg = f"O usuário '{username}' já existe no sistema operacional."
+            elif result_useradd:
+                 error_msg += f" Detalhes: {result_useradd.stderr}"
+            flash(error_msg, 'error')
+            # Não salva no JSON e redireciona com erro
+            return redirect(url_for('users_management_page'))
+
+    elif platform.system() != 'Linux':
+        flash(f"Aviso: Executando em sistema não-Linux ({platform.system()}). Usuário do sistema operacional não será criado.", 'warning')
+        # Permite continuar para criar apenas o usuário do painel
+
+    # 3. Se a criação no sistema foi bem-sucedida (ou se não for Linux), adiciona ao JSON
+    if system_user_created or platform.system() != 'Linux':
+        users_list.append({"username": username, "password": password})
+        save_users(users_list)
+        if system_user_created:
+            flash(f"Usuário '{username}' adicionado com sucesso ao painel e ao sistema (com shell /bin/bash para acesso SSH).", 'success')
+        else: # Caso não seja Linux
+            flash(f"Usuário '{username}' adicionado com sucesso ao painel (usuário do sistema não criado/verificado).", 'success')
+    # Se system_user_created for False e for Linux, o erro já foi tratado e redirecionado acima.
+
     return redirect(url_for('users_management_page'))
 
 
@@ -843,24 +1069,57 @@ def add_user():
 @login_required
 @admin_required
 def delete_user(username):
-    """Remove um usuário (apenas para 'cico', não pode remover 'cico')."""
+    """Remove um usuário do painel e do sistema (Linux)."""
     if username == 'cico':
         flash("Não é possível remover o usuário administrador 'cico'.", 'error')
-        # Redireciona de volta para a página de gerenciamento (aba usuários ativa)
         return redirect(url_for('users_management_page'))
 
-    users_list = load_users() # Renomeei para evitar conflito
-    user_exists = any(u['username'] == username for u in users_list)
+    users_list = load_users()
+    user_to_delete = next((u for u in users_list if u['username'] == username), None)
 
-    if not user_exists:
-         flash(f"Usuário '{username}' não encontrado.", 'error')
-         # Redireciona de volta para a página de gerenciamento (aba usuários ativa)
-         return redirect(url_for('users_management_page'))
+    if not user_to_delete:
+        flash(f"Usuário '{username}' não encontrado no painel.", 'error')
+        return redirect(url_for('users_management_page'))
 
-    users_list = [u for u in users_list if u['username'] != username]
-    save_users(users_list)
-    flash(f"Usuário '{username}' removido com sucesso.", 'success')
-    # Redireciona de volta para a página de gerenciamento (aba usuários ativa)
+    system_user_deleted = False
+    if platform.system() == 'Linux':
+        # 1. Tentar remover o usuário do sistema
+        #    -r: Remove o diretório home e o spool de email
+        print(f"Tentando remover usuário do sistema: {username}")
+        cmd_userdel = ['sudo', 'userdel', '-r', username]
+        result_userdel = run_command(cmd_userdel, check=False) # check=False para tratar erro manualmente
+
+        if result_userdel is not None and result_userdel.returncode == 0:
+            print(f"Usuário do sistema '{username}' removido com sucesso.")
+            system_user_deleted = True
+        # Trata caso onde o usuário não existe no sistema (ainda considera sucesso para remover do painel)
+        elif result_userdel and ("não existe" in result_userdel.stderr.lower() or "does not exist" in result_userdel.stderr.lower()):
+             print(f"Usuário do sistema '{username}' não encontrado. Procedendo com remoção do painel.")
+             system_user_deleted = True # Considera como 'sucesso' para o fluxo do painel
+        else:
+            # Falha ao remover usuário do sistema por outra razão
+            error_msg = f"Erro ao remover o usuário do sistema '{username}'."
+            if result_userdel:
+                 error_msg += f" Detalhes: {result_userdel.stderr}"
+            flash(error_msg, 'error')
+            # Não remove do JSON e redireciona com erro
+            return redirect(url_for('users_management_page'))
+
+    elif platform.system() != 'Linux':
+        flash(f"Aviso: Executando em sistema não-Linux ({platform.system()}). Usuário do sistema operacional não será removido.", 'warning')
+        # Permite continuar para remover apenas o usuário do painel
+
+    # 2. Se a remoção do sistema foi bem-sucedida (ou não aplicável), remove do JSON
+    if system_user_deleted or platform.system() != 'Linux':
+        users_list = [u for u in users_list if u['username'] != username]
+        save_users(users_list)
+        if system_user_deleted and platform.system() == 'Linux':
+            flash(f"Usuário '{username}' removido com sucesso do painel e do sistema.", 'success')
+        else:
+             flash(f"Usuário '{username}' removido com sucesso do painel (usuário do sistema não removido/verificado).", 'success')
+
+    # Se system_user_deleted for False e for Linux, o erro já foi tratado e redirecionado acima.
+
     return redirect(url_for('users_management_page'))
 
 

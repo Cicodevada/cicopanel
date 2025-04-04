@@ -1,1 +1,20 @@
-[]
+[
+  {
+      "domain": "cico.diy",
+      "type": "php",
+      "ssl_enabled": true,
+      "path": "/home/cico.diy"
+  },
+  {
+      "domain": "gefinplus.site",
+      "type": "php",
+      "ssl_enabled": true,
+      "path": "/var/www/gefinplus"
+  },
+  {
+      "domain": "arkanjo.site",
+      "type": "php",
+      "ssl_enabled": true,
+      "path": "/var/www/arkanjo"
+  }
+]
