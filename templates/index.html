@@ -191,6 +191,15 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-center">
+                    {# Acesso rápido para Usuários (Admin) #}
+                    {% if is_admin %}
+                    <li class="nav-item me-3"> {# Adicionado me-3 para espaçamento #}
+                         {# Link que ativa a aba de usuários #}
+                         <a class="nav-link text-white-50" href="#" onclick="activateUsersTab(event)" title="Gerenciar Usuários">
+                             <i class="fas fa-users-cog"></i> {# Ícone diferente para diferenciar da aba #}
+                         </a>
+                    </li>
+                    {% endif %}
                     <li class="nav-item me-2">
                         <span class="navbar-text text-white-50">
                             <i class="fas fa-user-circle me-1"></i> {{ session.username }}
@@ -401,7 +410,7 @@
                                             {{ site.created_by_user | default('N/A') }}
                                             {# Destaque se for o próprio admin #}
                                             {% if site.created_by_user == 'cico' %}
-                                                <span class="badge bg-primary ms-1" title="Administrador"><i class="fas fa-shield-alt"></i></span>
+                                                <span class="badge bg-primary ms-1" data-bs-toggle="tooltip" title="Administrador"><i class="fas fa-shield-alt"></i></span>
                                             {% endif %}
                                         </td>
                                         {% endif %}
@@ -480,599 +489,694 @@
                 {% endif %}
             </div>
 
-             <!-- Aba Usuários (Somente Admin) -->
-             {% if is_admin %} {# Usa a variável is_admin passada pelo Flask #}
-            <div class="tab-pane fade {% if active_tab == 'users' %}show active{% endif %}" id="users-tab-pane" role="tabpanel" aria-labelledby="users-tab" tabindex="0">
-                 <h3 class="mb-4">Gerenciamento de Usuários</h3>
-
-                 <!-- Formulário para adicionar novo usuário -->
-                 <div class="card mb-4">
-                     <div class="card-header">
-                         <i class="fas fa-user-plus me-1"></i> Adicionar Novo Usuário
-                     </div>
-                     <div class="card-body">
-                         <form action="{{ url_for('add_user') }}" method="post" class="row g-3 align-items-end">
-                             <div class="col-md-5">
-                                 <label for="new_username" class="form-label">Nome de Usuário:</label>
-                                 <input type="text" class="form-control" id="new_username" name="new_username" required>
-                             </div>
-                             <div class="col-md-5">
-                                 <label for="new_password" class="form-label">Senha:</label>
-                                 <input type="password" class="form-control" id="new_password" name="new_password" required>
-                                 <!-- Aviso de senha removido -->
-                             </div>
-                             <div class="col-md-2">
-                                 <button type="submit" class="btn btn-success w-100"><i class="fas fa-plus me-1"></i> Adicionar</button>
-                             </div>
-                         </form>
-                     </div>
-                 </div>
-
-                 <!-- Tabela de usuários existentes -->
-                 <h4 class="mb-3">Usuários Existentes</h4>
-                 {% if users %} {# Apenas verifica se a lista users foi passada #}
-                 <div class="table-responsive">
-                     <table class="table table-striped table-hover table-bordered align-middle">
-                         <thead class="table-light">
-                             <tr>
-                                 <th scope="col">Usuário</th>
-                                 <th scope="col" class="text-center" style="width: 15%;">Ações</th> {# Ajustei a largura para melhor acomodar os botões #}
-                             </tr>
-                         </thead>
-                         <tbody>
-                             {% for user in users %}
-                                 <tr>
-                                     <td>
-                                         <i class="fas fa-user me-2"></i> {{ user.username }}
-                                         {% if user.username == 'cico' %}
-                                             <span class="badge bg-primary ms-2"><i class="fas fa-shield-alt me-1"></i>Admin</span> {# Badge melhorado #}
-                                         {% endif %}
-                                     </td>
-                                     <td class="actions-cell text-center">
-                                         {% if user.username == 'cico' %}
-                                             {# Botão desabilitado para o admin 'cico' #}
-                                             <button class="btn btn-secondary btn-sm" disabled title="Não é possível remover o admin">
-                                                 <i class="fas fa-trash-alt"></i> <span class="d-none d-md-inline">Apagar</span> {# Texto opcional em telas maiores #}
-                                             </button>
-                                         {% else %}
-                                             {# Formulário de exclusão para outros usuários #}
-                                             <form action="{{ url_for('delete_user', username=user.username) }}" method="post" onsubmit="return confirm('Tem certeza que deseja apagar o usuário {{ user.username }}?');" style="display: inline;"> {# Garantir inline #}
-                                                 <button type="submit" class="btn btn-danger btn-sm" title="Apagar Usuário {{ user.username }}">
-                                                     <i class="fas fa-trash-alt"></i> <span class="d-none d-md-inline">Apagar</span> {# Texto opcional #}
-                                                 </button>
-                                             </form>
-                                             {# Você pode adicionar um botão de editar senha aqui no futuro se precisar #}
-                                             <!--
-                                             <button class="btn btn-warning btn-sm ms-1" title="Editar Senha (Não implementado)">
-                                                 <i class="fas fa-key"></i>
-                                             </button>
-                                             -->
-                                         {% endif %}
-                                     </td>
-                                 </tr>
-                             {% endfor %}
-                             {# Esta condição raramente será atingida, pois 'cico' deve sempre existir #}
-                             {% if not users %}
-                                 <tr>
-                                     <td colspan="2" class="text-center text-muted py-3">
-                                         <i class="fas fa-info-circle me-2"></i> Nenhum usuário encontrado na lista.
-                                     </td>
-                                 </tr>
-                             {% endif %}
-                         </tbody>
-                     </table>
-                 </div>
-                 {% else %}
-                     {# Mensagem caso a variável 'users' não seja passada ou esteja vazia por algum erro #}
-                     <div class="alert alert-warning text-center" role="alert">
-                        <i class="fas fa-exclamation-triangle me-2"></i> Não foi possível carregar a lista de usuários.
-                     </div>
-                 {% endif %}
+              <!-- Aba Usuários (Somente Admin) -->
+              {% if is_admin %} {# Usa a variável is_admin passada pelo Flask #}
+              <div class="tab-pane fade {% if active_tab == 'users' %}show active{% endif %}" id="users-tab-pane" role="tabpanel" aria-labelledby="users-tab" tabindex="0">
+                   <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h3 class="mb-0">Gerenciamento de Usuários</h3>
+                       {# Botão para abrir o modal de adicionar usuário #}
+                       <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                           <i class="fas fa-user-plus me-1"></i> Adicionar Novo Usuário
+                       </button>
+                    </div>
+  
+                   {% if users %} {# Verifica se a lista users foi passada #}
+                   <div class="table-responsive">
+                        <table class="table table-striped table-hover table-bordered align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col"><i class="fas fa-user me-1"></i> Usuário</th>
+                                    <th scope="col" class="text-center" style="width: 15%;"><i class="fas fa-bolt me-1"></i> Ações</th> {# Largura ajustada, ícone bolt #}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                    <tr>
+                                        <td>
+                                            {# Ícone padrão de usuário #}
+                                            <i class="fas {% if user.username == 'cico' %}fa-user-shield text-primary{% else %}fa-user text-muted{% endif %} me-2"></i>
+                                            {{ user.username }}
+                                            {% if user.username == 'cico' %}
+                                                {# Badge de Admin #}
+                                                <span class="badge bg-primary rounded-pill ms-2" data-bs-toggle="tooltip" title="Administrador"><i class="fas fa-shield-alt"></i></span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="actions-cell text-center">
+                                             <div class="btn-group btn-group-sm" role="group"> {# Agrupamento dos botões #}
+                                                {% if user.username == 'cico' %}
+                                                    {# Botão Apagar desabilitado para o admin 'cico' #}
+                                                    <button class="btn btn-outline-secondary" disabled title="Não é possível remover o admin">
+                                                        <i class="fas fa-trash-alt"></i>
+                                                    </button>
+                                                    {# Futuro botão de editar senha desabilitado #}
+                                                    <!-- <button class="btn btn-outline-secondary ms-1" disabled title="Editar Senha"><i class="fas fa-key"></i></button> -->
+                                                {% else %}
+                                                    {# Formulário de exclusão para outros usuários #}
+                                                    <form action="{{ url_for('delete_user', username=user.username) }}" method="post" onsubmit="return confirm('ATENÇÃO!\n\nTem certeza que deseja apagar o usuário {{ user.username }} do painel e do sistema operacional?\n\nEsta ação pode ser irreversível!');" class="d-inline">
+                                                        <button type="submit" class="btn btn-outline-danger" title="Apagar Usuário {{ user.username }} (Ação Irreversível!)">
+                                                            <i class="fas fa-trash-alt"></i>
+                                                        </button>
+                                                    </form>
+                                                    {# Futuro botão de editar senha habilitado #}
+                                                    <!--
+                                                    <button class="btn btn-outline-warning ms-1" title="Editar Senha (Não implementado)">
+                                                        <i class="fas fa-key"></i>
+                                                    </button>
+                                                    -->
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                                {# Tratamento caso a lista esteja vazia (improvável devido ao admin) #}
+                                {% if users | length <= 1 and users[0].username == 'cico' %}
+                                    <tr>
+                                         <td colspan="2" class="text-center text-muted py-3">
+                                            <i class="fas fa-info-circle me-2"></i> Nenhum usuário adicional cadastrado.
+                                         </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                   </div>
+                   {% else %}
+                       {# Mensagem caso a variável 'users' não seja passada ou esteja vazia por algum erro #}
+                       <div class="alert alert-warning text-center" role="alert">
+                           <i class="fas fa-exclamation-triangle me-2"></i> Não foi possível carregar a lista de usuários.
+                       </div>
+                   {% endif %}
+              </div>
+              {% endif %} {# Fim do if is_admin #}
+  
+          </div><!-- Fim Tab Content -->
+  
+      </main>
+  
+      <!-- Footer -->
+      <footer class="text-center py-3">
+           <div class="container">
+                <small>CicoPanel v0.5 - Criado com Flask e <i class="fas fa-heart text-danger"></i> por CicoGPT</small> {# Versão Atualizada #}
+           </div>
+      </footer>
+  
+      <!-- Modal Adicionar Site -->
+      <div class="modal fade" id="addSiteModal" tabindex="-1" aria-labelledby="addSiteModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg"> <!-- modal-lg para mais espaço -->
+          <div class="modal-content">
+            <div class="modal-header">
+              <h1 class="modal-title fs-5" id="addSiteModalLabel"><i class="fas fa-plus-circle me-2"></i>Adicionar Novo Site</h1>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            {% endif %} {# Fim do if is_admin #}
-
-        </div><!-- Fim Tab Content -->
-
-    </main>
-
-    <!-- Footer -->
-    <footer class="text-center py-3">
-         <div class="container">
-              <small>CicoPanel v0.4 - Criado com Flask e <i class="fas fa-heart text-danger"></i> por CicoGPT</small> {# Versão e créditos ;) #}
-         </div>
-    </footer>
-
-    <!-- Modal Adicionar Site -->
-    <div class="modal fade" id="addSiteModal" tabindex="-1" aria-labelledby="addSiteModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-lg"> <!-- modal-lg para mais espaço -->
-        <div class="modal-content">
-          <div class="modal-header">
-            <h1 class="modal-title fs-5" id="addSiteModalLabel"><i class="fas fa-plus-circle me-2"></i>Adicionar Novo Site</h1>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <form action="/add_site" method="post">
+                <div class="modal-body">
+                      <div class="mb-3">
+                          <label for="modal_domain" class="form-label">Domínio:</label>
+                          <input type="text" class="form-control" id="modal_domain" name="domain" required placeholder="ex: meusite.com.br">
+                      </div>
+  
+                      <div class="mb-3">
+                          <label for="modal_site_type" class="form-label">Tipo de Site:</label>
+                          <select class="form-select" id="modal_site_type" name="site_type" required onchange="toggleModalFields()">
+                              <option value="php">PHP</option>
+                              <option value="python_node">Python/Node.js/Outro App</option>
+                          </select>
+                      </div>
+  
+                      <!-- Campos PHP (dentro do modal) -->
+                      <div id="modal_php_fields">
+                          <div class="mb-3">
+                              <label for="modal_path" class="form-label">Caminho dos Arquivos (Document Root):</label>
+                              <input type="text" class="form-control" id="modal_path" name="path" placeholder="ex: /var/www/meusite-com-br"> {# Exemplo com hífen #}
+                              <div class="form-text">Diretório no servidor onde os arquivos do site estarão. Será criado se não existir. Permissões serão ajustadas para o usuário <strong>{{ session.username }}</strong> (se existir no sistema).</div>
+                          </div>
+                      </div>
+  
+                      <!-- Campos Python/Node (dentro do modal) -->
+                      <div id="modal_python_node_fields" class="hidden">
+                          <div class="mb-3">
+                              <label for="modal_port" class="form-label">Porta da Aplicação:</label>
+                              <input type="number" class="form-control" id="modal_port" name="port" placeholder="ex: 8000, 3000, 5001">
+                               <div class="form-text">A porta em que sua aplicação (Python, Node, etc.) estará rodando internamente (localhost). O Nginx fará o proxy reverso para esta porta.</div>
+                          </div>
+  
+                          <div class="mb-3">
+                              <label for="modal_command" class="form-label">Comando de Inicialização (Systemd):</label>
+                              <textarea class="form-control" id="modal_command" name="command" rows="3" placeholder="ex: /home/user/app/venv/bin/gunicorn -w 4 app:app -b 127.0.0.1:{{PORTA}}  OU  npm start"></textarea>       
+                              <div class="form-text">Comando completo para iniciar sua aplicação. Use <code>{{PORTA}}</code> para referenciar a porta definida acima. Será gerenciado por um serviço systemd.</div>
+                          </div>
+  
+                          <div class="mb-3">
+                              <label for="modal_workdir" class="form-label">Diretório de Trabalho:</label> {# Tornou-se mais importante #}
+                              <input type="text" class="form-control" id="modal_workdir" name="workdir" placeholder="ex: /var/www/meu-app" required> {# Adicionado required e placeholder melhorado #}
+                              <div class="form-text">O diretório onde o comando acima será executado (WORKDIR do systemd). Permissões serão ajustadas para o usuário <strong>{{ session.username }}</strong> (se existir no sistema).</div>
+                          </div>
+                      </div>
+  
+                       <!-- Opções de SSL (dentro do modal) -->
+                       <hr class="my-4">
+                       <h6 class="mb-3">Configurações de SSL</h6>
+                       <div class="mb-3 form-check">
+                          <input class="form-check-input" type="checkbox" id="modal_get_ssl" name="get_ssl" value="true" checked>
+                          <label class="form-check-label" for="modal_get_ssl">
+                              Ativar SSL (HTTPS) via Let's Encrypt/Certbot?
+                          </label>
+                          <div class="form-text">Tentará obter e configurar um certificado SSL automaticamente usando Certbot (requer Certbot instalado e configurado, e o domínio apontando para este servidor).</div>
+                       </div>
+  
+                       <div class="mb-3">
+                           <label for="modal_admin_email" class="form-label">Email para Notificações Let's Encrypt:</label>
+                           <input type="email" class="form-control" id="modal_admin_email" name="admin_email" placeholder="seu@email.com" required> {# Required se SSL estiver marcado (via JS seria melhor, mas por ora HTML) #}
+                            <div class="form-text">Necessário se ativar SSL. Usado para registro e notificações (ex: expiração).</div>
+                       </div>
+                </div>
+                <div class="modal-footer bg-light border-top"> {# Footer do modal com fundo claro #}
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                  {# Adiciona ID ao botão de submit #}
+                  <button type="submit" class="btn btn-primary" id="saveSiteButton"><i class="fas fa-check me-1"></i> Salvar Site</button>
+                </div>
+            </form>
           </div>
-          <form action="/add_site" method="post">
-              <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="modal_domain" class="form-label">Domínio:</label>
-                        <input type="text" class="form-control" id="modal_domain" name="domain" required placeholder="ex: meusite.com.br">
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="modal_site_type" class="form-label">Tipo de Site:</label>
-                        <select class="form-select" id="modal_site_type" name="site_type" required onchange="toggleModalFields()">
-                            <option value="php">PHP</option>
-                            <option value="python_node">Python/Node.js/Outro App</option>
-                        </select>
-                    </div>
-
-                    <!-- Campos PHP (dentro do modal) -->
-                    <div id="modal_php_fields">
-                        <div class="mb-3">
-                            <label for="modal_path" class="form-label">Caminho dos Arquivos (Document Root):</label>
-                            <input type="text" class="form-control" id="modal_path" name="path" placeholder="ex: /var/www/meusite-com-br"> {# Exemplo com hífen #}
-                            <div class="form-text">Diretório no servidor onde os arquivos do site estarão. Será criado se não existir. Permissões serão ajustadas para o usuário <strong>{{ session.username }}</strong> (se existir no sistema).</div>
-                        </div>
-                    </div>
-
-                    <!-- Campos Python/Node (dentro do modal) -->
-                    <div id="modal_python_node_fields" class="hidden">
-                        <div class="mb-3">
-                            <label for="modal_port" class="form-label">Porta da Aplicação:</label>
-                            <input type="number" class="form-control" id="modal_port" name="port" placeholder="ex: 8000, 3000, 5001">
-                             <div class="form-text">A porta em que sua aplicação (Python, Node, etc.) estará rodando internamente (localhost). O Nginx fará o proxy reverso para esta porta.</div> 
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="modal_command" class="form-label">Comando de Inicialização (Systemd):</label>
-                            <textarea class="form-control" id="modal_command" name="command" rows="3" placeholder="ex: /home/user/app/venv/bin/gunicorn -w 4 app:app -b 127.0.0.1:{{PORTA}}  OU  npm start"></textarea>
-                            <div class="form-text">Comando completo para iniciar sua aplicação. Use <code>{{PORTA}}</code> para referenciar a porta definida acima. Será gerenciado por um serviço systemd.</div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="modal_workdir" class="form-label">Diretório de Trabalho:</label> {# Tornou-se mais importante #}
-                            <input type="text" class="form-control" id="modal_workdir" name="workdir" placeholder="ex: /var/www/meu-app" required> {# Adicionado required e placeholder melhorado #}
-                            <div class="form-text">O diretório onde o comando acima será executado (WORKDIR do systemd). Permissões serão ajustadas para o usuário <strong>{{ session.username }}</strong> (se existir no sistema).</div>
-                        </div>
-                    </div>
-
-                     <!-- Opções de SSL (dentro do modal) -->
-                     <hr class="my-4">
-                     <h6 class="mb-3">Configurações de SSL</h6>
-                     <div class="mb-3 form-check">
-                        <input class="form-check-input" type="checkbox" id="modal_get_ssl" name="get_ssl" value="true" checked>
-                        <label class="form-check-label" for="modal_get_ssl">
-                            Ativar SSL (HTTPS) via Let's Encrypt/Certbot?
-                        </label>
-                        <div class="form-text">Tentará obter e configurar um certificado SSL automaticamente usando Certbot (requer Certbot instalado e configurado, e o domínio apontando para este servidor).</div>
-                     </div>
-
-                     <div class="mb-3">
-                         <label for="modal_admin_email" class="form-label">Email para Notificações Let's Encrypt:</label>
-                         <input type="email" class="form-control" id="modal_admin_email" name="admin_email" placeholder="seu@email.com" required> {# Required se SSL estiver marcado (via JS seria melhor, mas por ora HTML) #}
-                          <div class="form-text">Necessário se ativar SSL. Usado para registro e notificações (ex: expiração).</div>
-                     </div>
-              </div>
-              <div class="modal-footer bg-light border-top"> {# Footer do modal com fundo claro #}
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                {# Adiciona ID ao botão de submit #}
-                <button type="submit" class="btn btn-primary" id="saveSiteButton"><i class="fas fa-check me-1"></i> Salvar Site</button>
-              </div>
-          </form>
         </div>
       </div>
-    </div>
-
-
-    <!-- Bootstrap Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-
-    <!-- Scripts Personalizados -->
-    <script>
-        // Guarda as instâncias dos gráficos para poder atualizá-las
-        let charts = {
-            cpu: null,
-            memory: null,
-            disk: null
-        };
-        let historicalData = null; // Armazena os dados carregados
-
-        // --- Função para formatar Timestamp (simplificada) ---
-        function formatTimestamp(isoString) {
-            if (!isoString) return '';
-            try {
-                const date = new Date(isoString);
-                // Formato HH:MM:SS (local)
-                return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                // Alternativa: DD/MM HH:MM
-                // return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            } catch (e) {
-                console.error("Erro ao formatar data:", isoString, e);
-                return isoString; // Retorna original em caso de erro
-            }
-        }
-
-
-        // --- Função para criar ou atualizar um gráfico específico ---
-        function renderChart(canvasId, chartInstanceKey, labels, dataPoints, label, borderColor, backgroundColor) {
-            const ctx = document.getElementById(canvasId).getContext('2d');
-
-            const chartData = {
-                labels: labels,
-                datasets: [{
-                    label: label,
-                    data: dataPoints,
-                    fill: true, // Preenchimento abaixo da linha
-                    borderColor: borderColor,
-                    backgroundColor: backgroundColor + '40', // Adiciona transparência à cor de fundo
-                    tension: 0.2, // Curva suave
-                    pointRadius: 1, // Pontos menores
-                    pointHoverRadius: 5 // Ponto maior no hover
-                }]
-            };
-
-             const chartOptions = {
-                responsive: true,
-                maintainAspectRatio: false, // Permite definir altura via CSS ou container
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100, // Uso percentual
-                        ticks: {
-                             stepSize: 20 // Intervalo do eixo Y
-                        }
-                    },
-                    x: {
-                         ticks: {
-                             maxRotation: 0, // Não rotacionar labels
-                             autoSkip: true, // Pula alguns labels se ficarem apertados
-                             maxTicksLimit: 8 // Limita o número de labels no eixo X
-                         }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false // Esconde a legenda (já temos título no card)
-                    },
-                     tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                    }
-                },
-                 animation: {
-                    duration: 400 // Animação mais rápida na atualização
-                 }
-            };
-
-
-            if (charts[chartInstanceKey]) {
-                // Atualiza dados e re-renderiza
-                charts[chartInstanceKey].data = chartData;
-                charts[chartInstanceKey].update();
-            } else {
-                // Cria novo gráfico
-                charts[chartInstanceKey] = new Chart(ctx, {
-                    type: 'line', // Tipo de gráfico de linha
-                    data: chartData,
-                    options: chartOptions
-                });
-            }
-        }
-
-        // --- Função para buscar dados históricos e renderizar todos os gráficos ---
-        async function fetchAndRenderCharts(period = 'log_5min') {
-             const loadingMsg = document.getElementById('charts-loading-msg');
-             const errorMsg = document.getElementById('charts-error-msg');
-             loadingMsg.style.display = 'block';
-             errorMsg.style.display = 'none';
-
-             // Remove a classe 'active' de todos os botões e adiciona ao selecionado
-             document.querySelectorAll('.chart-period-selector .btn').forEach(btn => btn.classList.remove('active'));
-             const activeButton = document.querySelector(`.chart-period-selector .btn[data-period="${period}"]`);
-             if (activeButton) activeButton.classList.add('active');
-
-
-            try {
-                 // Busca os dados apenas se ainda não foram carregados
-                 if (!historicalData) {
-                     const response = await fetch('/system_stats_history');
-                     if (!response.ok) {
-                         throw new Error(`HTTP error! status: ${response.status}`);
-                     }
-                     historicalData = await response.json();
-                 }
-
-                if (historicalData.error) {
-                    throw new Error(historicalData.error);
-                }
-
-                const logs = historicalData[period] || []; // Usa o período selecionado
-
-                 if (!logs || logs.length === 0) {
-                    loadingMsg.textContent = `Nenhum dado disponível para o período selecionado (${period.replace('log_','')}).`;
-                    // Limpa gráficos existentes se não houver dados
-                    if (charts.cpu) { charts.cpu.data.labels = []; charts.cpu.data.datasets[0].data = []; charts.cpu.update(); }
-                    if (charts.memory) { charts.memory.data.labels = []; charts.memory.data.datasets[0].data = []; charts.memory.update(); }
-                    if (charts.disk) { charts.disk.data.labels = []; charts.disk.data.datasets[0].data = []; charts.disk.update(); }
-                    return; // Sai se não houver logs
-                 }
-
-
-                // Prepara dados para Chart.js
-                const labels = logs.map(entry => formatTimestamp(entry.timestamp));
-                const cpuData = logs.map(entry => entry.cpu_usage);
-                const memoryData = logs.map(entry => entry.memory_usage);
-                const diskData = logs.map(entry => entry.disk_usage);
-
-                // Renderiza/Atualiza os gráficos
-                renderChart('cpuChart', 'cpu', labels, cpuData, 'CPU Usage (%)', '#0d6efd', '#0d6efd'); // Azul Bootstrap
-                renderChart('memoryChart', 'memory', labels, memoryData, 'Memory Usage (%)', '#0dcaf0', '#0dcaf0'); // Ciano Bootstrap
-                renderChart('diskChart', 'disk', labels, diskData, 'Disk Usage (%)', '#ffc107', '#ffc107'); // Amarelo Bootstrap
-
-                loadingMsg.style.display = 'none'; // Esconde mensagem de carregamento
-
-            } catch (error) {
-                console.error("Erro ao buscar ou renderizar gráficos:", error);
-                loadingMsg.style.display = 'none';
-                errorMsg.style.display = 'block';
-                // Limpa gráficos em caso de erro
-                if (charts.cpu) { charts.cpu.destroy(); charts.cpu = null; }
-                if (charts.memory) { charts.memory.destroy(); charts.memory = null; }
-                if (charts.disk) { charts.disk.destroy(); charts.disk = null; }
-            }
-        }
-
-        // --- Função chamada pelos botões de período ---
-        function updateCharts(buttonElement) {
-             const selectedPeriod = buttonElement.getAttribute('data-period');
-             fetchAndRenderCharts(selectedPeriod); // Re-renderiza com o novo período
-        }
-
-        // --- Função para gerar caminho padrão a partir do domínio ---
-        function generateDefaultPath() {
-            const domainInput = document.getElementById('modal_domain');
-            const pathInput = document.getElementById('modal_path');
-            const workdirInput = document.getElementById('modal_workdir');
-            const siteTypeSelect = document.getElementById('modal_site_type'); // Precisa do tipo
-            let domain = domainInput.value.trim().toLowerCase();
-
-            // Remove http/https e barras
-            domain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
-
-            if (domain) {
-                // Gera nome seguro substituindo caracteres não alfanuméricos por hífen
-                 const safeDirName = domain.replace(/[^a-z0-9.-]/g, '-').replace(/\.+/g, '.').replace(/^-+|-+$/g, ''); // Limpa um pouco mais
-                 const dirName = safeDirName.replace(/\./g, '-'); // Substitui pontos restantes por hífens para nome da pasta
-
-                // Base comum para o caminho
-                const basePath = `/var/www/${dirName}`;
-
-                // Atualiza ambos os campos, pois o usuário pode trocar o tipo depois
-                 pathInput.value = basePath;
-                 workdirInput.value = basePath;
-
-             } else {
-                // Limpa se o domínio estiver vazio
-                pathInput.value = '';
-                workdirInput.value = '';
-            }
-        }
-
-        // --- Função para mostrar/esconder campos DO MODAL ---
-        function toggleModalFields() {
-            const type = document.getElementById('modal_site_type').value;
-            const phpFields = document.getElementById('modal_php_fields');
-            const pythonNodeFields = document.getElementById('modal_python_node_fields');
-            const pathInput = document.getElementById('modal_path');
-            const portInput = document.getElementById('modal_port');
-            const commandInput = document.getElementById('modal_command');
-            const workdirInput = document.getElementById('modal_workdir'); // Agora precisamos dele
-
-            if (type === 'php') {
-                phpFields.classList.remove('hidden');
-                pythonNodeFields.classList.add('hidden');
-                pathInput.required = true;
-                 workdirInput.required = false; // Workdir não é primário para PHP aqui
-                portInput.required = false;
-                commandInput.required = false;
-            } else { // python_node
-                phpFields.classList.add('hidden');
-                pythonNodeFields.classList.remove('hidden');
-                pathInput.required = false; // Path não é primário para App
-                 workdirInput.required = true; // Workdir é necessário para App
-                portInput.required = true;
-                commandInput.required = true;
-            }
-
-            // Lógica para habilitar/desabilitar e tornar email obrigatório com base no SSL
-            const sslCheckbox = document.getElementById('modal_get_ssl');
-            const emailInput = document.getElementById('modal_admin_email');
-             if (sslCheckbox.checked) {
-                emailInput.required = true;
-                 emailInput.disabled = false;
-                 // Adiciona um pequeno aviso visual se o campo estiver vazio
-                 if (!emailInput.value) {
-                    emailInput.classList.add('is-invalid');
-                 } else {
-                     emailInput.classList.remove('is-invalid');
-                 }
-             } else {
-                 emailInput.required = false;
-                 emailInput.disabled = true;
-                 emailInput.classList.remove('is-invalid');
-                 // Opcional: Limpar o valor se desmarcar
-                 // emailInput.value = '';
-            }
-        }
-
-        // --- Função para buscar e atualizar as estatísticas do sistema ---
-        async function fetchSystemStats() {
-            try {
-                const response = await fetch('/system_stats');
-                if (!response.ok) {
-                    console.error("Erro ao buscar stats:", response.status, response.statusText);
-                     // Poderia desabilitar/mostrar erro na seção de stats
-                    return;
-                }
-                const stats = await response.json();
-
-                if (stats.error) {
-                     console.error("Erro no backend ao buscar stats:", stats.error);
-                     // Poderia desabilitar/mostrar erro na seção de stats
-                     return;
-                }
-
-                // Atualiza CPU
-                const cpuProgress = document.getElementById('cpu-progress');
-                const cpuProgressContainer = document.getElementById('cpu-progress-container');
-                if (cpuProgress && cpuProgressContainer) {
-                    const cpuUsage = parseFloat(stats.cpu_usage || 0).toFixed(1);
-                    cpuProgress.style.width = cpuUsage + '%';
-                    cpuProgress.textContent = cpuUsage + '%';
-                    cpuProgressContainer.setAttribute('aria-valuenow', cpuUsage);
-                }
-
-                // Atualiza Memória
-                const memoryProgress = document.getElementById('memory-progress');
-                const memoryProgressContainer = document.getElementById('memory-progress-container');
-                const memoryDetails = document.getElementById('memory-details');
-                 if (memoryProgress && memoryProgressContainer && memoryDetails) {
-                    const memoryUsage = parseFloat(stats.memory_usage || 0).toFixed(1);
-                    memoryProgress.style.width = memoryUsage + '%';
-                    memoryProgress.textContent = memoryUsage + '%';
-                    memoryProgressContainer.setAttribute('aria-valuenow', memoryUsage);
-                    memoryDetails.textContent = `(${stats.memory_used || 0} GB / ${stats.memory_total || 0} GB)`;
-                }
-
-                 // Atualiza Disco
-                const diskProgress = document.getElementById('disk-progress');
-                const diskProgressContainer = document.getElementById('disk-progress-container');
-                const diskDetails = document.getElementById('disk-details');
-                 if (diskProgress && diskProgressContainer && diskDetails) {
-                    const diskUsage = parseFloat(stats.disk_usage || 0).toFixed(1);
-                    diskProgress.style.width = diskUsage + '%';
-                    diskProgress.textContent = diskUsage + '%';
-                    diskProgressContainer.setAttribute('aria-valuenow', diskUsage);
-                    diskDetails.textContent = `(${stats.disk_used || 0} GB / ${stats.disk_total || 0} GB)`;
-                }
-
-            } catch (error) {
-                console.error("Erro de rede ou JS ao buscar stats:", error);
-                 // Poderia desabilitar/mostrar erro na seção de stats
-            }
-        }
-
-        // --- Inicialização quando o DOM estiver pronto ---
-        document.addEventListener('DOMContentLoaded', function() {
-             // Garante o estado inicial correto dos campos do modal e do email SSL
-             toggleModalFields();
-
-             // Adiciona listener para o checkbox SSL para atualizar a obrigatoriedade do email
-             const sslCheckbox = document.getElementById('modal_get_ssl');
-             if (sslCheckbox) {
-                 sslCheckbox.addEventListener('change', toggleModalFields);
-             }
-              // Adiciona listener no input de email para remover o erro visual ao digitar
-             const emailInput = document.getElementById('modal_admin_email');
-             if (emailInput) {
-                 emailInput.addEventListener('input', () => {
-                     if (emailInput.required && emailInput.value) {
-                         emailInput.classList.remove('is-invalid');
-                     } else if (emailInput.required && !emailInput.value) {
+  
+      <!-- Modal Adicionar Usuário (Admin) -->
+      {% if is_admin %}
+      <div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
+        <div class="modal-dialog"> {# Tamanho padrão do modal #}
+          <div class="modal-content">
+            <div class="modal-header">
+              <h1 class="modal-title fs-5" id="addUserModalLabel"><i class="fas fa-user-plus me-2"></i>Adicionar Novo Usuário</h1>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('add_user') }}" method="post">
+                <div class="modal-body">
+                      <div class="mb-3">
+                          <label for="modal_new_username" class="form-label">Nome de Usuário:</label>
+                          <input type="text" class="form-control" id="modal_new_username" name="new_username" required placeholder="Nome único para login">
+                          <div class="form-text">Este nome também será usado para criar o usuário no sistema operacional (Linux).</div>
+                      </div>
+  
+                      <div class="mb-3">
+                          <label for="modal_new_password" class="form-label">Senha:</label>
+                          <input type="password" class="form-control" id="modal_new_password" name="new_password" required placeholder="Senha forte recomendada">
+                           <div class="form-text">A senha será usada para o login no painel e no sistema (Linux).</div>
+                      </div>
+                      {# Adicionar mais campos se necessário no futuro (ex: permissões, grupos) #}
+                </div>
+                <div class="modal-footer bg-light border-top">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                  {# Adiciona ID ao botão de submit #}
+                  <button type="submit" class="btn btn-primary" id="saveUserButton"><i class="fas fa-check me-1"></i> Salvar Usuário</button>
+                </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+  
+  
+      <!-- Bootstrap Bundle with Popper -->
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  
+      <!-- Scripts Personalizados -->
+      <script>
+          // Guarda as instâncias dos gráficos para poder atualizá-las
+          let charts = {
+              cpu: null,
+              memory: null,
+              disk: null
+          };
+          let historicalData = null; // Armazena os dados carregados
+  
+          // --- Função para formatar Timestamp (simplificada) ---
+          function formatTimestamp(isoString) {
+              if (!isoString) return '';
+              try {
+                  const date = new Date(isoString);
+                  // Formato HH:MM:SS (local)
+                  return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                  // Alternativa: DD/MM HH:MM
+                  // return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+              } catch (e) {
+                  console.error("Erro ao formatar data:", isoString, e);
+                  return isoString; // Retorna original em caso de erro
+              }
+          }
+  
+  
+          // --- Função para criar ou atualizar um gráfico específico ---
+          function renderChart(canvasId, chartInstanceKey, labels, dataPoints, label, borderColor, backgroundColor) {
+              const ctx = document.getElementById(canvasId).getContext('2d');
+  
+              const chartData = {
+                  labels: labels,
+                  datasets: [{
+                      label: label,
+                      data: dataPoints,
+                      fill: true, // Preenchimento abaixo da linha
+                      borderColor: borderColor,
+                      backgroundColor: backgroundColor + '40', // Adiciona transparência à cor de fundo
+                      tension: 0.2, // Curva suave
+                      pointRadius: 1, // Pontos menores
+                      pointHoverRadius: 5 // Ponto maior no hover
+                  }]
+              };
+  
+               const chartOptions = {
+                  responsive: true,
+                  maintainAspectRatio: false, // Permite definir altura via CSS ou container
+                  scales: {
+                      y: {
+                          beginAtZero: true,
+                          max: 100, // Uso percentual
+                          ticks: {
+                               stepSize: 20 // Intervalo do eixo Y
+                          }
+                      },
+                      x: {
+                           ticks: {
+                               maxRotation: 0, // Não rotacionar labels
+                               autoSkip: true, // Pula alguns labels se ficarem apertados
+                               maxTicksLimit: 8 // Limita o número de labels no eixo X
+                           }
+                      }
+                  },
+                  plugins: {
+                      legend: {
+                          display: false // Esconde a legenda (já temos título no card)
+                      },
+                       tooltip: {
+                          mode: 'index',
+                          intersect: false,
+                      }
+                  },
+                   animation: {
+                      duration: 400 // Animação mais rápida na atualização
+                   }
+              };
+  
+  
+              if (charts[chartInstanceKey]) {
+                  // Atualiza dados e re-renderiza
+                  charts[chartInstanceKey].data = chartData;
+                  charts[chartInstanceKey].update();
+              } else {
+                  // Cria novo gráfico
+                  charts[chartInstanceKey] = new Chart(ctx, {
+                      type: 'line', // Tipo de gráfico de linha
+                      data: chartData,
+                      options: chartOptions
+                  });
+              }
+          }
+  
+          // --- Função para buscar dados históricos e renderizar todos os gráficos ---
+          async function fetchAndRenderCharts(period = 'log_5min') {
+               const loadingMsg = document.getElementById('charts-loading-msg');
+               const errorMsg = document.getElementById('charts-error-msg');
+               loadingMsg.style.display = 'block';
+               errorMsg.style.display = 'none';
+  
+               // Remove a classe 'active' de todos os botões e adiciona ao selecionado
+               document.querySelectorAll('.chart-period-selector .btn').forEach(btn => btn.classList.remove('active'));
+               const activeButton = document.querySelector(`.chart-period-selector .btn[data-period="${period}"]`);
+               if (activeButton) activeButton.classList.add('active');
+  
+  
+              try {
+                   // Busca os dados apenas se ainda não foram carregados
+                   if (!historicalData) {
+                       const response = await fetch('/system_stats_history');
+                       if (!response.ok) {
+                           throw new Error(`HTTP error! status: ${response.status}`);
+                       }
+                       historicalData = await response.json();
+                   }
+  
+                  if (historicalData.error) {
+                      throw new Error(historicalData.error);
+                  }
+  
+                  const logs = historicalData[period] || []; // Usa o período selecionado
+  
+                   if (!logs || logs.length === 0) {
+                      loadingMsg.textContent = `Nenhum dado disponível para o período selecionado (${period.replace('log_','')}).`;
+                      // Limpa gráficos existentes se não houver dados
+                      if (charts.cpu) { charts.cpu.data.labels = []; charts.cpu.data.datasets[0].data = []; charts.cpu.update(); }
+                      if (charts.memory) { charts.memory.data.labels = []; charts.memory.data.datasets[0].data = []; charts.memory.update(); }
+                      if (charts.disk) { charts.disk.data.labels = []; charts.disk.data.datasets[0].data = []; charts.disk.update(); }
+                      return; // Sai se não houver logs
+                   }
+  
+  
+                  // Prepara dados para Chart.js
+                  const labels = logs.map(entry => formatTimestamp(entry.timestamp));
+                  const cpuData = logs.map(entry => entry.cpu_usage);
+                  const memoryData = logs.map(entry => entry.memory_usage);
+                  const diskData = logs.map(entry => entry.disk_usage);
+  
+                  // Renderiza/Atualiza os gráficos
+                  renderChart('cpuChart', 'cpu', labels, cpuData, 'CPU Usage (%)', '#0d6efd', '#0d6efd'); // Azul Bootstrap
+                  renderChart('memoryChart', 'memory', labels, memoryData, 'Memory Usage (%)', '#0dcaf0', '#0dcaf0'); // Ciano Bootstrap
+                  renderChart('diskChart', 'disk', labels, diskData, 'Disk Usage (%)', '#ffc107', '#ffc107'); // Amarelo Bootstrap
+  
+                  loadingMsg.style.display = 'none'; // Esconde mensagem de carregamento
+  
+              } catch (error) {
+                  console.error("Erro ao buscar ou renderizar gráficos:", error);
+                  loadingMsg.style.display = 'none';
+                  errorMsg.style.display = 'block';
+                  // Limpa gráficos em caso de erro
+                  if (charts.cpu) { charts.cpu.destroy(); charts.cpu = null; }
+                  if (charts.memory) { charts.memory.destroy(); charts.memory = null; }
+                  if (charts.disk) { charts.disk.destroy(); charts.disk = null; }
+              }
+          }
+  
+          // --- Função chamada pelos botões de período ---
+          function updateCharts(buttonElement) {
+               const selectedPeriod = buttonElement.getAttribute('data-period');
+               fetchAndRenderCharts(selectedPeriod); // Re-renderiza com o novo período
+          }
+  
+          // --- Função para gerar caminho padrão a partir do domínio ---
+          function generateDefaultPath() {
+              const domainInput = document.getElementById('modal_domain');
+              const pathInput = document.getElementById('modal_path');
+              const workdirInput = document.getElementById('modal_workdir');
+              const siteTypeSelect = document.getElementById('modal_site_type'); // Precisa do tipo
+              let domain = domainInput.value.trim().toLowerCase();
+  
+              // Remove http/https e barras
+              domain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  
+              if (domain) {
+                  // Gera nome seguro substituindo caracteres não alfanuméricos por hífen
+                   const safeDirName = domain.replace(/[^a-z0-9.-]/g, '-').replace(/\.+/g, '.').replace(/^-+|-+$/g, ''); // Limpa um pouco mais
+                   const dirName = safeDirName.replace(/\./g, '-'); // Substitui pontos restantes por hífens para nome da pasta
+  
+                  // Base comum para o caminho
+                  const basePath = `/var/www/${dirName}`;
+  
+                  // Atualiza ambos os campos, pois o usuário pode trocar o tipo depois
+                   pathInput.value = basePath;
+                   workdirInput.value = basePath;
+  
+               } else {
+                  // Limpa se o domínio estiver vazio
+                  pathInput.value = '';
+                  workdirInput.value = '';
+              }
+          }
+  
+          // --- Função para mostrar/esconder campos DO MODAL ---
+          function toggleModalFields() {
+              const typeElement = document.getElementById('modal_site_type');
+              // Verifica se o elemento existe antes de tentar ler o valor
+              if (!typeElement) return;
+              const type = typeElement.value;
+  
+              const phpFields = document.getElementById('modal_php_fields');
+              const pythonNodeFields = document.getElementById('modal_python_node_fields');
+              const pathInput = document.getElementById('modal_path');
+              const portInput = document.getElementById('modal_port');
+              const commandInput = document.getElementById('modal_command');
+              const workdirInput = document.getElementById('modal_workdir'); // Agora precisamos dele
+  
+               // Garante que os elementos existem antes de manipular classes/atributos
+               if (!phpFields || !pythonNodeFields || !pathInput || !portInput || !commandInput || !workdirInput) {
+                   console.warn("Um ou mais elementos do formulário do modal de sites não foram encontrados.");
+                   return;
+               }
+  
+              if (type === 'php') {
+                  phpFields.classList.remove('hidden');
+                  pythonNodeFields.classList.add('hidden');
+                  pathInput.required = true;
+                   workdirInput.required = false; // Workdir não é primário para PHP aqui
+                  portInput.required = false;
+                  commandInput.required = false;
+              } else { // python_node
+                  phpFields.classList.add('hidden');
+                  pythonNodeFields.classList.remove('hidden');
+                  pathInput.required = false; // Path não é primário para App
+                   workdirInput.required = true; // Workdir é necessário para App
+                  portInput.required = true;
+                  commandInput.required = true;
+              }
+  
+              // Lógica para habilitar/desabilitar e tornar email obrigatório com base no SSL
+              const sslCheckbox = document.getElementById('modal_get_ssl');
+              const emailInput = document.getElementById('modal_admin_email');
+  
+               // Verifica se os elementos SSL existem
+              if (sslCheckbox && emailInput) {
+                   if (sslCheckbox.checked) {
+                      emailInput.required = true;
+                       emailInput.disabled = false;
+                       // Adiciona um pequeno aviso visual se o campo estiver vazio
+                       if (!emailInput.value) {
                           emailInput.classList.add('is-invalid');
-                     }
-                 });
-             }
-
-
-             // Inicializa Tooltips do Bootstrap (se houver)
-             var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-             var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-               return new bootstrap.Tooltip(tooltipTriggerEl)
-             })
-
-            // Busca inicial de stats e define intervalo
-            fetchSystemStats();
-            setInterval(fetchSystemStats, 7000); // Atualiza a cada 7 segundos
-
-             // Busca inicial dos dados históricos e renderiza os gráficos
-             fetchAndRenderCharts('log_5min'); // Carrega o período padrão inicial
-
-            // Adiciona listener para limpar/resetar o formulário do modal quando ele for fechado
-             var addSiteModal = document.getElementById('addSiteModal');
-             if (addSiteModal) {
-                 addSiteModal.addEventListener('hidden.bs.modal', function (event) {
-                     // Encontra o formulário dentro do modal
-                     var form = event.target.querySelector('form');
-                     if (form) {
-                         form.reset(); // Reseta os campos do formulário
-                         toggleModalFields(); // Garante que os campos corretos estejam visíveis após reset
-                     }
-                 });
-             }
-             
-            // --- Listener para auto-preencher caminho ao digitar domínio ---
-            const domainModalInput = document.getElementById('modal_domain');
-            if (domainModalInput) {
-                domainModalInput.addEventListener('input', generateDefaultPath);
-            }
-
-             // Verifica se alguma aba já está ativa (definida pelo servidor via Jinja)
-             const activeTabButton = document.querySelector('#mainTabs .nav-link.active');
-
-             // Se nenhuma aba foi marcada como ativa pelo servidor, ativa a primeira aba (Sistema)
-             if (!activeTabButton) {
-                 const firstTabButton = document.querySelector('#mainTabs button[data-bs-toggle="tab"]'); // Pega o primeiro botão de tab
-                 if (firstTabButton) {
-                     try {
-                         const firstTabInstance = bootstrap.Tab.getOrCreateInstance(firstTabButton);
-                         if (firstTabInstance) {
-                             firstTabInstance.show();
-                         } else {
-                             console.warn("Não foi possível obter instância da primeira aba.");
-                         }
-                     } catch(e) {
-                         console.error("Erro ao tentar ativar a primeira aba:", e);
-                     }
-                 }
-             }
-
-             // REMOVIDA a lógica que salvava a aba clicada no localStorage
-             // REMOVIDA a lógica que tentava restaurar a aba do localStorage
-
-             // O listener 'shown.bs.tab' para salvar no localStorage também foi removido.
-
-            // --- Listener para o botão de Salvar Site no Modal ---
-            const addSiteForm = document.querySelector('#addSiteModal form');
-            const saveSiteButton = document.getElementById('saveSiteButton');
-
-            if (addSiteForm && saveSiteButton) {
-                addSiteForm.addEventListener('submit', function() {
-                    // Desabilita o botão
-                    saveSiteButton.disabled = true;
-                    // Muda o texto e adiciona spinner
-                    saveSiteButton.innerHTML = `
-                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                        Salvando...
-                    `;
-                     // Opcional: Você pode adicionar validação JS aqui antes de desabilitar,
-                     // se a validação falhar, não desabilite e não mude o texto.
-                });
-
-                 // Se o modal for fechado (por exemplo, clicando em Cancelar ou no X)
-                 // resetamos o botão para o estado original, caso o submit não tenha
-                 // redirecionado a página ainda (útil se houver validação JS futura).
-                var addSiteModalElement = document.getElementById('addSiteModal');
-                 if (addSiteModalElement) {
-                    addSiteModalElement.addEventListener('hidden.bs.modal', function () {
-                        saveSiteButton.disabled = false;
-                        saveSiteButton.innerHTML = '<i class="fas fa-check me-1"></i> Salvar Site';
-                    });
-                 }
-            }
-
-
-         });
-
-    </script>
-</body>
-</html>
+                       } else {
+                           emailInput.classList.remove('is-invalid');
+                       }
+                   } else {
+                       emailInput.required = false;
+                       emailInput.disabled = true;
+                       emailInput.classList.remove('is-invalid');
+                       // Opcional: Limpar o valor se desmarcar
+                       // emailInput.value = '';
+                   }
+              } else {
+                   // console.warn("Elementos de SSL (checkbox ou email input) não encontrados no modal de sites.");
+              }
+          }
+  
+          // --- Função para buscar e atualizar as estatísticas do sistema ---
+          async function fetchSystemStats() {
+              try {
+                  const response = await fetch('/system_stats');
+                  if (!response.ok) {
+                      console.error("Erro ao buscar stats:", response.status, response.statusText);
+                       // Poderia desabilitar/mostrar erro na seção de stats
+                      return;
+                  }
+                  const stats = await response.json();
+  
+                  if (stats.error) {
+                       console.error("Erro no backend ao buscar stats:", stats.error);
+                       // Poderia desabilitar/mostrar erro na seção de stats
+                       return;
+                  }
+  
+                  // Atualiza CPU
+                  const cpuProgress = document.getElementById('cpu-progress');
+                  const cpuProgressContainer = document.getElementById('cpu-progress-container');
+                  if (cpuProgress && cpuProgressContainer) {
+                      const cpuUsage = parseFloat(stats.cpu_usage || 0).toFixed(1);
+                      cpuProgress.style.width = cpuUsage + '%';
+                      cpuProgress.textContent = cpuUsage + '%';
+                      cpuProgressContainer.setAttribute('aria-valuenow', cpuUsage);
+                  }
+  
+                  // Atualiza Memória
+                  const memoryProgress = document.getElementById('memory-progress');
+                  const memoryProgressContainer = document.getElementById('memory-progress-container');
+                  const memoryDetails = document.getElementById('memory-details');
+                   if (memoryProgress && memoryProgressContainer && memoryDetails) {
+                      const memoryUsage = parseFloat(stats.memory_usage || 0).toFixed(1);
+                      memoryProgress.style.width = memoryUsage + '%';
+                      memoryProgress.textContent = memoryUsage + '%';
+                      memoryProgressContainer.setAttribute('aria-valuenow', memoryUsage);
+                      memoryDetails.textContent = `(${stats.memory_used || 0} GB / ${stats.memory_total || 0} GB)`;
+                  }
+  
+                   // Atualiza Disco
+                  const diskProgress = document.getElementById('disk-progress');
+                  const diskProgressContainer = document.getElementById('disk-progress-container');
+                  const diskDetails = document.getElementById('disk-details');
+                   if (diskProgress && diskProgressContainer && diskDetails) {
+                      const diskUsage = parseFloat(stats.disk_usage || 0).toFixed(1);
+                      diskProgress.style.width = diskUsage + '%';
+                      diskProgress.textContent = diskUsage + '%';
+                      diskProgressContainer.setAttribute('aria-valuenow', diskUsage);
+                      diskDetails.textContent = `(${stats.disk_used || 0} GB / ${stats.disk_total || 0} GB)`;
+                  }
+  
+              } catch (error) {
+                  console.error("Erro de rede ou JS ao buscar stats:", error);
+                   // Poderia desabilitar/mostrar erro na seção de stats
+              }
+          }
+  
+          // --- Função para ativar a aba de usuários programaticamente ---
+          function activateUsersTab(event) {
+              event.preventDefault(); // Impede a navegação do link '#'
+              const usersTabButton = document.getElementById('users-tab');
+              if (usersTabButton) {
+                   const tab = new bootstrap.Tab(usersTabButton);
+                   tab.show();
+              }
+          }
+  
+          // --- Inicialização quando o DOM estiver pronto ---
+          document.addEventListener('DOMContentLoaded', function() {
+               // Garante o estado inicial correto dos campos do modal e do email SSL
+               toggleModalFields();
+  
+               // Adiciona listener para o checkbox SSL para atualizar a obrigatoriedade do email
+               const sslCheckbox = document.getElementById('modal_get_ssl');
+               if (sslCheckbox) {
+                   sslCheckbox.addEventListener('change', toggleModalFields);
+               }
+                // Adiciona listener no input de email para remover o erro visual ao digitar
+               const emailInput = document.getElementById('modal_admin_email');
+               if (emailInput) {
+                   emailInput.addEventListener('input', () => {
+                        // Verifica se o checkbox SSL existe e está marcado
+                        const sslCheck = document.getElementById('modal_get_ssl');
+                        if (sslCheck && sslCheck.checked && emailInput.required && emailInput.value) {
+                           emailInput.classList.remove('is-invalid');
+                       } else if (sslCheck && sslCheck.checked && emailInput.required && !emailInput.value) {
+                            emailInput.classList.add('is-invalid');
+                       }
+                   });
+               }
+  
+  
+               // Inicializa Tooltips do Bootstrap (se houver)
+               var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+               var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                 return new bootstrap.Tooltip(tooltipTriggerEl)
+               })
+  
+              // Busca inicial de stats e define intervalo
+              fetchSystemStats();
+              setInterval(fetchSystemStats, 7000); // Atualiza a cada 7 segundos
+  
+               // Busca inicial dos dados históricos e renderiza os gráficos
+               fetchAndRenderCharts('log_5min'); // Carrega o período padrão inicial
+  
+              // Adiciona listener para limpar/resetar o formulário do modal de SITES quando ele for fechado
+               var addSiteModal = document.getElementById('addSiteModal');
+               if (addSiteModal) {
+                   addSiteModal.addEventListener('hidden.bs.modal', function (event) {
+                       var form = event.target.querySelector('form');
+                       if (form) {
+                           form.reset(); // Reseta os campos do formulário
+                           toggleModalFields(); // Garante que os campos corretos estejam visíveis após reset
+                           const emailInput = document.getElementById('modal_admin_email'); // Remove classe de erro do email
+                           if(emailInput) emailInput.classList.remove('is-invalid');
+                       }
+                   });
+               }
+  
+               // Adiciona listener para limpar/resetar o formulário do modal de USUÁRIOS quando ele for fechado
+               var addUserModal = document.getElementById('addUserModal');
+               if (addUserModal) {
+                   addUserModal.addEventListener('hidden.bs.modal', function (event) {
+                       var form = event.target.querySelector('form');
+                       if (form) {
+                           form.reset(); // Reseta os campos
+                           // Resetar validação customizada se houver no futuro
+                       }
+                   });
+               }
+  
+              // --- Listener para auto-preencher caminho ao digitar domínio ---
+              const domainModalInput = document.getElementById('modal_domain');
+              if (domainModalInput) {
+                  domainModalInput.addEventListener('input', generateDefaultPath);
+              }
+  
+               // Verifica se alguma aba já está ativa (definida pelo servidor via Jinja)
+               const activeTabButton = document.querySelector('#mainTabs .nav-link.active');
+  
+               // Se nenhuma aba foi marcada como ativa pelo servidor, ativa a primeira aba (Sistema)
+               if (!activeTabButton) {
+                   const firstTabButton = document.querySelector('#mainTabs button[data-bs-toggle="tab"]'); // Pega o primeiro botão de tab
+                   if (firstTabButton) {
+                       try {
+                           const firstTabInstance = bootstrap.Tab.getOrCreateInstance(firstTabButton);
+                           if (firstTabInstance) {
+                               firstTabInstance.show();
+                           } else {
+                               console.warn("Não foi possível obter instância da primeira aba.");
+                           }
+                       } catch(e) {
+                           console.error("Erro ao tentar ativar a primeira aba:", e);
+                       }
+                   }
+               }
+  
+               // REMOVIDA a lógica que salvava a aba clicada no localStorage
+               // REMOVIDA a lógica que tentava restaurar a aba do localStorage
+  
+               // O listener 'shown.bs.tab' para salvar no localStorage também foi removido.
+  
+              // --- Listener para o botão de Salvar Site no Modal ---
+              const addSiteForm = document.querySelector('#addSiteModal form');
+              const saveSiteButton = document.getElementById('saveSiteButton');
+  
+              if (addSiteForm && saveSiteButton) {
+                  addSiteForm.addEventListener('submit', function(event) { // Adicionado event
+                      // Validação simples do email se SSL estiver checado
+                      const sslCheck = document.getElementById('modal_get_ssl');
+                      const emailInput = document.getElementById('modal_admin_email');
+                      if (sslCheck && emailInput && sslCheck.checked && !emailInput.value) {
+                           event.preventDefault(); // Impede o envio do formulário
+                           emailInput.classList.add('is-invalid'); // Mostra erro
+                           alert('O campo Email é obrigatório quando a opção SSL está ativada.'); // Alerta simples
+                           return; // Sai da função
+                       }
+  
+  
+                      // Desabilita o botão e mostra spinner se a validação passar
+                      saveSiteButton.disabled = true;
+                      saveSiteButton.innerHTML = `
+                          <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                          Salvando...
+                      `;
+                  });
+  
+                   // Reseta o botão se o modal for fechado
+                  var addSiteModalElement = document.getElementById('addSiteModal');
+                   if (addSiteModalElement) {
+                      addSiteModalElement.addEventListener('hidden.bs.modal', function () {
+                          saveSiteButton.disabled = false;
+                          saveSiteButton.innerHTML = '<i class="fas fa-check me-1"></i> Salvar Site';
+                           // Também remove a classe de erro do email ao fechar
+                           const emailInput = document.getElementById('modal_admin_email');
+                           if(emailInput) emailInput.classList.remove('is-invalid');
+                      });
+                   }
+              }
+  
+               // --- Listener para o botão de Salvar Usuário no Modal ---
+               const addUserForm = document.querySelector('#addUserModal form');
+               const saveUserButton = document.getElementById('saveUserButton');
+  
+               if (addUserForm && saveUserButton) {
+                   addUserForm.addEventListener('submit', function() {
+                       saveUserButton.disabled = true;
+                       saveUserButton.innerHTML = `
+                           <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                           Salvando...
+                       `;
+                   });
+  
+                   var addUserModalElement = document.getElementById('addUserModal');
+                   if (addUserModalElement) {
+                       addUserModalElement.addEventListener('hidden.bs.modal', function () {
+                           saveUserButton.disabled = false;
+                           saveUserButton.innerHTML = '<i class="fas fa-check me-1"></i> Salvar Usuário';
+                       });
+                   }
+               }
+  
+  
+           });
+  
+      </script>
+  </body>
+  </html>
