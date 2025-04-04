@@ -518,16 +518,18 @@
                                             {{ user.username }}
                                             {% if user.username == 'cico' %}
                                                 {# Badge de Admin #}
-                                                <span class="badge bg-primary rounded-pill ms-2" data-bs-toggle="tooltip" title="Administrador"><i class="fas fa-shield-alt"></i></span>
+                                                <span class="badge bg-primary ms-1" data-bs-toggle="tooltip" title="Administrador"><i class="fas fa-shield-alt"></i></span>
                                             {% endif %}
                                         </td>
                                         <td class="actions-cell text-center">
                                              <div class="btn-group btn-group-sm" role="group"> {# Agrupamento dos botões #}
                                                 {% if user.username == 'cico' %}
                                                     {# Botão Apagar desabilitado para o admin 'cico' #}
-                                                    <button class="btn btn-outline-secondary" disabled title="Não é possível remover o admin">
-                                                        <i class="fas fa-trash-alt"></i>
-                                                    </button>
+                                                    <form action="#" method="post" onsubmit="return" class="d-inline">
+                                                        <button class="btn btn-outline-secondary" disabled title="Não é possível remover o admin">
+                                                            <i class="fas fa-trash-alt"></i>
+                                                        </button>
+                                                    </form>
                                                     {# Futuro botão de editar senha desabilitado #}
                                                     <!-- <button class="btn btn-outline-secondary ms-1" disabled title="Editar Senha"><i class="fas fa-key"></i></button> -->
                                                 {% else %}
