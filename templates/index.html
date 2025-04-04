@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CicoPanel - Dashboard</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        body {
+            background-color: #f8f9fa; /* Cinza claro de fundo */
+            display: flex;
+            min-height: 100vh;
+            flex-direction: column;
+        }
+        .navbar {
+             box-shadow: 0 2px 4px rgba(0,0,0,.08);
+             background-color: #343a40 !important; /* Navbar mais escura */
+        }
+        .nav-tabs .nav-link {
+            color: #495057; /* Cor do texto das abas inativas */
+            border-bottom: 2px solid transparent; /* Tira a borda padrão de baixo */
+             border-top-left-radius: .25rem;
+             border-top-right-radius: .25rem;
+             padding-top: 0.75rem;
+             padding-bottom: 0.75rem;
+             font-weight: 500;
+        }
+         .nav-tabs .nav-link.active {
+            color: #0d6efd; /* Cor do texto da aba ativa */
+            background-color: #fff; /* Fundo branco para aba ativa */
+            border-color: #dee2e6 #dee2e6 #fff; /* Borda sutil */
+            border-bottom: 2px solid #0d6efd; /* Linha azul embaixo da ativa */
+            font-weight: 600;
+         }
+         .tab-content {
+            background-color: #fff;
+            padding: 1.5rem;
+            border: 1px solid #dee2e6;
+            border-top: none; /* Tira a borda de cima, pois a aba já faz a separação */
+            border-radius: 0 0 .25rem .25rem; /* Arredonda cantos inferiores */
+            box-shadow: 0 1px 3px rgba(0,0,0,.05);
+         }
+        .card {
+            margin-bottom: 1.5rem;
+            border: 1px solid #e9ecef;
+            box-shadow: 0 0 10px rgba(0,0,0,.05); /* Sombra mais suave */
+        }
+         .card-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+            padding: 0.75rem 1.25rem;
+         }
+        .table code {
+          font-size: 0.85em;
+          word-break: break-all;
+          background-color: #e9ecef;
+          padding: 0.2em 0.4em;
+          border-radius: 3px;
+        }
+        .progress {
+            height: 1.25rem;
+            font-size: 0.8rem;
+            background-color: #e9ecef;
+            border-radius: .375rem; /* Bordas mais arredondadas */
+        }
+        .progress-bar {
+             font-weight: bold;
+             color: #fff; /* Texto branco na barra */
+             text-shadow: 1px 1px 1px rgba(0,0,0,0.2); /* Sombra no texto */
+        }
+        .stat-card {
+            background-color: #fff;
+            border-radius: .375rem;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            border: 1px solid #e9ecef;
+             box-shadow: 0 1px 2px rgba(0,0,0,.05);
+        }
+        .stat-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: #6c757d; /* Cinza para ícone */
+        }
+        .stat-label {
+             font-size: 0.9rem;
+             color: #6c757d;
+             margin-bottom: 0.25rem;
+             display: block;
+        }
+         .stat-details {
+            font-size: 0.8rem;
+            color: #6c757d;
+         }
+         .actions-cell form {
+            display: inline-block;
+            margin-right: 5px; /* Espaço entre botões de ação */
+         }
+          .actions-cell form:last-child {
+            margin-right: 0;
+         }
+         main {
+            flex: 1;
+            padding-top: 1.5rem; /* Mais espaço acima */
+            padding-bottom: 2rem; /* Espaço abaixo */
+         }
+         footer {
+            background-color: #e9ecef; /* Footer mais claro */
+            padding: 1rem 0;
+            margin-top: auto; /* Empurra para o fim */
+            border-top: 1px solid #dee2e6;
+            color: #6c757d;
+         }
+         .modal-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+         }
+         /* Estilo aprimorado para mensagens flash */
+         #flash-messages-container .alert {
+             display: flex;
+             align-items: center;
+             padding: 0.8rem 1rem;
+             font-size: 0.95rem;
+             border-left: 5px solid transparent; /* Borda esquerda colorida */
+         }
+         #flash-messages-container .alert-success { border-left-color: #198754; background-color: #d1e7dd; color: #0f5132;}
+         #flash-messages-container .alert-danger { border-left-color: #dc3545; background-color: #f8d7da; color: #842029;}
+         #flash-messages-container .alert-warning { border-left-color: #ffc107; background-color: #fff3cd; color: #664d03;}
+         #flash-messages-container .alert-info { border-left-color: #0dcaf0; background-color: #cff4fc; color: #055160;}
+         #flash-messages-container .alert .btn-close { margin-left: auto; }
+         #flash-messages-container .alert i { font-size: 1.2em; margin-right: 0.75rem; }
+         .form-text {
+</old>
+<old>            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">     
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <!-- Link phpMyAdmin (se relevante) -->
+                    <!-- <li class="nav-item">
+                        <a class="btn btn-outline-light btn-sm" href="/phpmyadmin" target="_blank">
+                            <i class="fas fa-database"></i> phpMyAdmin
+                        </a>
+                    </li> -->
+                     <!-- Outros links podem ir aqui -->
+                </ul>
+                 
+                 
+            </div>
+        </div>
+    </nav>
+</old>
+<new>            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center">
+                    <li class="nav-item me-2">
+                        <span class="navbar-text text-white-50">
+                            <i class="fas fa-user-circle me-1"></i> {{ session.username }}
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <a class="btn btn-outline-light btn-sm" href="{{ url_for('logout') }}" title="Sair">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </a>
+                    </li>
+                    <!-- Outros links podem ir aqui -->
+                </ul>
+            </div>
+        </div>
+    </nav>
+            font-size: 0.875em;
+         }
+         .hidden { display: none; } /* Mantém para o JS */
+         .chart-container {
+            position: relative;
+            height: 300px; /* <<< ALTURA FIXA PARA O GRÁFICO */
+            /* width: 100%; */ /* Largura já é controlada pelo col-* */
+            margin-bottom: 1.5rem;
+            background-color: #fff;
+            padding: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: .375rem;
+            box-shadow: 0 1px 2px rgba(0,0,0,.05);
+         }
+         .chart-title {
+             font-size: 1.1rem;
+             font-weight: 600;
+             margin-bottom: 0.75rem;
+             text-align: center;
+             color: #495057;
+         }
+         .chart-period-selector {
+             text-align: center;
+             margin-bottom: 1.5rem;
+         }
+         .chart-period-selector .btn {
+             margin: 0 5px;
+         }
+    </style>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <!-- Opcional: Adaptador de data para Chart.js (se precisar de formatação avançada de datas) -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script> -->
+</head>
+<body>
+    <!-- Barra de Navegação -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/"> <i class="fas fa-cogs"></i> CicoPanel</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">     
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <!-- Link phpMyAdmin (se relevante) -->
+                    <!-- <li class="nav-item">
+                        <a class="btn btn-outline-light btn-sm" href="/phpmyadmin" target="_blank">
+                            <i class="fas fa-database"></i> phpMyAdmin
+                        </a>
+                    </li> -->
+                     <!-- Outros links podem ir aqui -->
+                </ul>
+                 
+                 
+            </div>
+        </div>
+    </nav>
+
+    <!-- Conteúdo Principal -->
+    <main class="container">
+
+        <!-- Flash Messages -->
+        <div id="flash-messages-container" class="mb-3">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    {% set alert_class = 'alert-info' %} {# Padrão #}
+                    {% if category == 'success' %}
+                        {% set alert_class = 'alert-success' %}
+                    {% elif category == 'error' %}
+                        {% set alert_class = 'alert-danger' %}
+                    {% elif category == 'warning' %}
+                         {% set alert_class = 'alert-warning' %}
+                    {% elif category == 'info' %}
+                         {% set alert_class = 'alert-info' %}
+                    {% endif %}
+                    <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert">
+                         {# Ícone muda com base no tipo #}
+                         {% if category == 'success' %}<i class="fas fa-check-circle"></i>
+                         {% elif category == 'error' %}<i class="fas fa-times-circle"></i>
+                         {% elif category == 'warning' %}<i class="fas fa-exclamation-triangle"></i>
+                         {% else %}<i class="fas fa-info-circle"></i>{% endif %}
+                         <span class="flex-grow-1">{{ message }}</span> {# Mensagem ocupa espaço restante #}
+                        <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        </div>
+
+        <!-- Abas de Navegação -->
+        <ul class="nav nav-tabs mb-0" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                {# Aba Sistema: ativa por padrão se nenhuma outra for especificada OU se active_tab == 'system' #}
+                <button class="nav-link {% if active_tab == 'system' or not active_tab %}active{% endif %}" id="system-tab" data-bs-toggle="tab" data-bs-target="#system-tab-pane" type="button" role="tab" aria-controls="system-tab-pane" aria-selected="{% if active_tab == 'system' or not active_tab %}true{% else %}false{% endif %}">
+                    <i class="fas fa-server me-1"></i> Sistema
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                {# Aba Sites: ativa se active_tab == 'sites' #}
+                <button class="nav-link {% if active_tab == 'sites' %}active{% endif %}" id="sites-tab" data-bs-toggle="tab" data-bs-target="#sites-tab-pane" type="button" role="tab" aria-controls="sites-tab-pane" aria-selected="{% if active_tab == 'sites' %}true{% else %}false{% endif %}">
+                    <i class="fas fa-globe me-1"></i> Sites
+                </button>
+            </li>
+             {% if session.username == 'cico' %} {# Mostra aba Usuários apenas para cico #}
+            <li class="nav-item" role="presentation">
+                 {# Aba Usuários: ativa se active_tab == 'users' #}
+                <button class="nav-link {% if active_tab == 'users' %}active{% endif %}" id="users-tab" data-bs-toggle="tab" data-bs-target="#users-tab-pane" type="button" role="tab" aria-controls="users-tab-pane" aria-selected="{% if active_tab == 'users' %}true{% else %}false{% endif %}">
+                    <i class="fas fa-users me-1"></i> Usuários
+                </button>
+            </li>
+            {% endif %}
+        </ul>
+
+        <!-- Conteúdo das Abas -->
+        <div class="tab-content" id="mainTabsContent">
+            <!-- Aba Sistema -->
+             {# Painel Sistema: ativo por padrão se nenhuma outra for especificada OU se active_tab == 'system' #}
+            <div class="tab-pane fade {% if active_tab == 'system' or not active_tab %}show active{% endif %}" id="system-tab-pane" role="tabpanel" aria-labelledby="system-tab" tabindex="0">
+                <h3 class="mb-4">Visão Geral do Sistema</h3>
+                <div class="row">
+                    <!-- Public IP -->
+                    <div class="col-md-3 col-sm-6 mb-3">
+                        <div class="stat-card text-center h-100">
+                            <div class="stat-icon"><i class="fas fa-network-wired"></i></div>
+                            <span class="stat-label">IPv4 Público</span>
+                            <h4 class="mt-2 mb-0" id="public-ip-display">{{ public_ip | default('Carregando...') }}</h4>
+                            <small class="text-muted">Seu IP na internet</small>
+                        </div>
+                    </div>
+                    <!-- CPU Usage -->
+                    <div class="col-md-3 col-sm-6 mb-3">
+                         <div class="stat-card text-center h-100">
+                             <div class="stat-icon"><i class="fas fa-microchip"></i></div>
+                             <span class="stat-label">Uso de CPU</span>
+                             <div class="progress mt-2" role="progressbar" aria-label="CPU Usage" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" id="cpu-progress-container">
+                                 <div class="progress-bar bg-primary" style="width: 0%" id="cpu-progress">0%</div>
+                             </div>
+                             <small class="text-muted mt-2 d-block">Uso atual</small>
+                         </div>
+                    </div>
+                    <!-- Memory Usage -->
+                    <div class="col-md-3 col-sm-6 mb-3">
+                         <div class="stat-card text-center h-100">
+                             <div class="stat-icon"><i class="fas fa-memory"></i></div>
+                             <span class="stat-label">Uso de Memória</span>
+                             <div class="progress mt-2" role="progressbar" aria-label="Memory Usage" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" id="memory-progress-container">       
+                                 <div class="progress-bar bg-info" style="width: 0%" id="memory-progress">0%</div>
+                             </div>
+                             <div class="stat-details mt-2" id="memory-details">(0 GB / 0 GB)</div>
+                         </div>
+                    </div>
+                    <!-- Disk Usage -->
+                    <div class="col-md-3 col-sm-6 mb-3">
+                         <div class="stat-card text-center h-100">
+                            <div class="stat-icon"><i class="fas fa-hdd"></i></div>
+                            <span class="stat-label">Uso de Disco (/)</span>
+                            <div class="progress mt-2" role="progressbar" aria-label="Disk Usage" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" id="disk-progress-container">
+                                <div class="progress-bar bg-warning text-dark" style="width: 0%" id="disk-progress">0%</div>
+                            </div>
+                             <div class="stat-details mt-2" id="disk-details">(0 GB / 0 GB)</div>
+                         </div>
+                    </div>
+                </div>
+                <!-- Área dos Gráficos -->
+                <div id="charts-area" class="mt-5">
+                     <h4 class="mb-3 text-center">Histórico de Utilização do Sistema</h4>
+
+                     <!-- Seletor de Período -->
+                     <div class="chart-period-selector mb-4">
+                        <span class="me-2">Visualizar:</span>
+                        <div class="btn-group" role="group" aria-label="Período do Gráfico">
+                          <button type="button" class="btn btn-sm btn-outline-secondary active" data-period="log_5min" onclick="updateCharts(this)">Últimos 30 Minutos</button>
+                          <button type="button" class="btn btn-sm btn-outline-secondary" data-period="log_30min" onclick="updateCharts(this)">Últimas 24 Horas</button>
+                          <button type="button" class="btn btn-sm btn-outline-secondary" data-period="log_24h" onclick="updateCharts(this)">Últimos 7 Dias</button>
+                        </div>
+                      </div>
+
+
+                    <div class="row">
+                        <div class="col-lg-4">
+                            <div class="chart-container">
+                                <div class="chart-title"><i class="fas fa-microchip me-2 text-primary"></i>CPU (%)</div>
+                                <canvas id="cpuChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="chart-container">
+                                <div class="chart-title"><i class="fas fa-memory me-2 text-info"></i>Memória (%)</div>
+                                <canvas id="memoryChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="chart-container">
+                                 <div class="chart-title"><i class="fas fa-hdd me-2 text-warning"></i>Disco (%)</div>
+                                <canvas id="diskChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <p id="charts-loading-msg" class="text-center text-muted mt-3">Carregando dados históricos...</p>
+                    <p id="charts-error-msg" class="text-center text-danger mt-3" style="display: none;">Erro ao carregar dados dos gráficos.</p>
+                </div>
+            </div>
+
+            <!-- Aba Sites -->
+             {# Painel Sites: ativo se active_tab == 'sites' #}
+            <div class="tab-pane fade {% if active_tab == 'sites' %}show active{% endif %}" id="sites-tab-pane" role="tabpanel" aria-labelledby="sites-tab" tabindex="0">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                     <h3 class="mb-0">Gerenciamento de Sites</h3>
+                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addSiteModal">
+                        <i class="fas fa-plus me-1"></i> Adicionar Novo Site
+                    </button>
+                 </div>
+
+                {% if sites %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover table-bordered align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">Domínio</th>
+                                    <th scope="col">Tipo</th>
+                                    <th scope="col">Detalhes</th>
+                                    <th scope="col">SSL</th>
+                                    <th scope="col" style="width: 10%;" class="text-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for site in sites %}
+                                    <tr>
+                                        <td><a href="http://{{ site.domain }}" target="_blank">{{ site.domain }}</a></td>
+                                        <td class="text-center">
+                                            {% if site.type == 'php' %}
+                                                <span class="badge bg-primary"><i class="fab fa-php me-1"></i> PHP</span>
+                                            {% else %}
+                                                <span class="badge bg-info text-dark"><i class="fas fa-rocket me-1"></i> App</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if site.type == 'php' %}
+                                                <strong>Caminho:</strong> <code>{{ site.path }}</code>
+                                            {% else %}
+                                                <strong>Porta:</strong> {{ site.port }} <br>
+                                                <strong>Comando:</strong> <code data-bs-toggle="tooltip" title="{{ site.command }}">{{ site.command | truncate(40, True) }}</code> <br>
+                                                <strong>Serviço:</strong> <code>{{ site.service_name | default('N/A') }}</code> <br>
+                                                {% if site.workdir %}<strong>Workdir:</strong> <code>{{ site.workdir }}</code>{% endif %}
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-center">
+                                            {% if site.ssl_enabled %}
+                                                <span class="badge bg-success"><i class="fas fa-lock"></i> Ativado</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary"><i class="fas fa-lock-open"></i> Desativado</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="actions-cell text-center">
+                                             <form action="{{ url_for('delete_site', domain=site.domain) }}" method="post" onsubmit="return confirm('Tem certeza que deseja apagar o site {{ site.domain }}? Isso removerá a configuração do Nginx, o serviço Systemd (se aplicável) e a entrada no painel. Os arquivos NÃO serão apagados automaticamente.');">
+                                                <button type="submit" class="btn btn-danger btn-sm" title="Apagar Site">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                            </form>
+                                             <!-- Botões Editar/Reiniciar (futuro) -->
+                                             <!-- <button class="btn btn-sm btn-primary" title="Editar"><i class="fas fa-edit"></i></button> -->
+                                             <!-- <button class="btn btn-sm btn-warning" title="Reiniciar"><i class="fas fa-sync-alt"></i></button> -->
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-light text-center" role="alert">
+                       <i class="fas fa-info-circle me-2"></i> Nenhum site configurado ainda. Clique em "Adicionar Novo Site" para começar.
+                    </div>
+                {% endif %}
+            </div>
+
+             <!-- Aba Usuários (Somente Admin) -->
+             {% if session.username == 'cico' %}
+            <div class="tab-pane fade {% if active_tab == 'users' %}show active{% endif %}" id="users-tab-pane" role="tabpanel" aria-labelledby="users-tab" tabindex="0">
+                 <h3 class="mb-4">Gerenciamento de Usuários</h3>
+
+                 <!-- Formulário para adicionar novo usuário -->
+                 <div class="card mb-4">
+                     <div class="card-header">
+                         <i class="fas fa-user-plus me-1"></i> Adicionar Novo Usuário
+                     </div>
+                     <div class="card-body">
+                         <form action="{{ url_for('add_user') }}" method="post" class="row g-3 align-items-end">
+                             <div class="col-md-5">
+                                 <label for="new_username" class="form-label">Nome de Usuário:</label>
+                                 <input type="text" class="form-control" id="new_username" name="new_username" required>
+                             </div>
+                             <div class="col-md-5">
+                                 <label for="new_password" class="form-label">Senha:</label>
+                                 <input type="password" class="form-control" id="new_password" name="new_password" required>
+                                 <!-- Aviso de senha removido -->
+                             </div>
+                             <div class="col-md-2">
+                                 <button type="submit" class="btn btn-success w-100"><i class="fas fa-plus me-1"></i> Adicionar</button>
+                             </div>
+                         </form>
+                     </div>
+                 </div>
+
+                 <!-- Tabela de usuários existentes -->
+                 <h4 class="mb-3">Usuários Existentes</h4>
+                 {% if users %} {# Apenas verifica se a lista users foi passada #}
+                 <div class="table-responsive">
+                     <table class="table table-striped table-hover table-bordered align-middle">
+                         <thead class="table-light">
+                             <tr>
+                                 <th scope="col">Usuário</th>
+                                 <th scope="col" class="text-center" style="width: 15%;">Ações</th> {# Ajustei a largura para melhor acomodar os botões #}
+                             </tr>
+                         </thead>
+                         <tbody>
+                             {% for user in users %}
+                                 <tr>
+                                     <td>
+                                         <i class="fas fa-user me-2"></i> {{ user.username }}
+                                         {% if user.username == 'cico' %}
+                                             <span class="badge bg-primary ms-2"><i class="fas fa-shield-alt me-1"></i>Admin</span> {# Badge melhorado #}
+                                         {% endif %}
+                                     </td>
+                                     <td class="actions-cell text-center">
+                                         {% if user.username == 'cico' %}
+                                             {# Botão desabilitado para o admin 'cico' #}
+                                             <button class="btn btn-secondary btn-sm" disabled title="Não é possível remover o admin">
+                                                 <i class="fas fa-trash-alt"></i> <span class="d-none d-md-inline">Apagar</span> {# Texto opcional em telas maiores #}
+                                             </button>
+                                         {% else %}
+                                             {# Formulário de exclusão para outros usuários #}
+                                             <form action="{{ url_for('delete_user', username=user.username) }}" method="post" onsubmit="return confirm('Tem certeza que deseja apagar o usuário {{ user.username }}?');" style="display: inline;"> {# Garantir inline #}
+                                                 <button type="submit" class="btn btn-danger btn-sm" title="Apagar Usuário {{ user.username }}">
+                                                     <i class="fas fa-trash-alt"></i> <span class="d-none d-md-inline">Apagar</span> {# Texto opcional #}
+                                                 </button>
+                                             </form>
+                                             {# Você pode adicionar um botão de editar senha aqui no futuro se precisar #}
+                                             <!--
+                                             <button class="btn btn-warning btn-sm ms-1" title="Editar Senha (Não implementado)">
+                                                 <i class="fas fa-key"></i>
+                                             </button>
+                                             -->
+                                         {% endif %}
+                                     </td>
+                                 </tr>
+                             {% endfor %}
+                             {# Esta condição raramente será atingida, pois 'cico' deve sempre existir #}
+                             {% if not users %}
+                                 <tr>
+                                     <td colspan="2" class="text-center text-muted py-3">
+                                         <i class="fas fa-info-circle me-2"></i> Nenhum usuário encontrado na lista.
+                                     </td>
+                                 </tr>
+                             {% endif %}
+                         </tbody>
+                     </table>
+                 </div>
+                 {% else %}
+                     {# Mensagem caso a variável 'users' não seja passada ou esteja vazia por algum erro #}
+                     <div class="alert alert-warning text-center" role="alert">
+                        <i class="fas fa-exclamation-triangle me-2"></i> Não foi possível carregar a lista de usuários.
+                     </div>
+                 {% endif %}
+            </div>
+            {% endif %} {# Fim do if session.username == 'cico' #}
+
+        </div><!-- Fim Tab Content -->
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center py-3">
+         <div class="container">
+              <small>CicoPanel v0.3 - Criado com Flask e <i class="fas fa-heart text-danger"></i></small>
+         </div>
+    </footer>
+
+    <!-- Modal Adicionar Site -->
+    <div class="modal fade" id="addSiteModal" tabindex="-1" aria-labelledby="addSiteModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg"> <!-- modal-lg para mais espaço -->
+        <div class="modal-content">
+          <div class="modal-header">
+            <h1 class="modal-title fs-5" id="addSiteModalLabel"><i class="fas fa-plus-circle me-2"></i>Adicionar Novo Site</h1>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form action="/add_site" method="post">
+              <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="modal_domain" class="form-label">Domínio:</label>
+                        <input type="text" class="form-control" id="modal_domain" name="domain" required placeholder="ex: meusite.com.br">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modal_site_type" class="form-label">Tipo de Site:</label>
+                        <select class="form-select" id="modal_site_type" name="site_type" required onchange="toggleModalFields()">
+                            <option value="php">PHP</option>
+                            <option value="python_node">Python/Node.js/Outro App</option>
+                        </select>
+                    </div>
+
+                    <!-- Campos PHP (dentro do modal) -->
+                    <div id="modal_php_fields">
+                        <div class="mb-3">
+                            <label for="modal_path" class="form-label">Caminho dos Arquivos (Document Root):</label>
+                            <input type="text" class="form-control" id="modal_path" name="path" placeholder="ex: /var/www/meusite.com.br">
+                            <div class="form-text">O diretório no servidor onde os arquivos do site (index.php, etc.) estão localizados. O Nginx precisa ter permissão de leitura.</div>
+                        </div>
+                    </div>
+
+                    <!-- Campos Python/Node (dentro do modal) -->
+                    <div id="modal_python_node_fields" class="hidden">
+                        <div class="mb-3">
+                            <label for="modal_port" class="form-label">Porta da Aplicação:</label>
+                            <input type="number" class="form-control" id="modal_port" name="port" placeholder="ex: 8000, 3000, 5001">
+                             <div class="form-text">A porta em que sua aplicação (Python, Node, etc.) estará rodando internamente (localhost). O Nginx fará o proxy reverso para esta porta.</div> 
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="modal_command" class="form-label">Comando de Inicialização (Systemd):</label>
+                            <textarea class="form-control" id="modal_command" name="command" rows="3" placeholder="ex: /home/user/app/venv/bin/gunicorn -w 4 app:app -b 127.0.0.1:{{PORTA}}  OU  npm start"></textarea>
+                            <div class="form-text">Comando completo para iniciar sua aplicação. Use <code>{{PORTA}}</code> para referenciar a porta definida acima. Será gerenciado por um serviço systemd.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="modal_workdir" class="form-label">Diretório de Trabalho (Opcional, recomendado):</label>
+                            <input type="text" class="form-control" id="modal_workdir" name="workdir" placeholder="ex: /home/user/meuapp/">
+                            <div class="form-text">O diretório onde o comando acima será executado. Essencial se seu app depende de arquivos locais ou <code>.env</code>. Se omitido, tentaremos adivinhar (pode falhar).</div>
+                        </div>
+                    </div>
+
+                     <!-- Opções de SSL (dentro do modal) -->
+                     <hr class="my-4">
+                     <h6 class="mb-3">Configurações de SSL</h6>
+                     <div class="mb-3 form-check">
+                        <input class="form-check-input" type="checkbox" id="modal_get_ssl" name="get_ssl" value="true" checked>
+                        <label class="form-check-label" for="modal_get_ssl">
+                            Ativar SSL (HTTPS) via Let's Encrypt/Certbot?
+                        </label>
+                        <div class="form-text">Tentará obter e configurar um certificado SSL automaticamente usando Certbot (requer Certbot instalado e configurado, e o domínio apontando para este servidor).</div>
+                     </div>
+
+                     <div class="mb-3">
+                         <label for="modal_admin_email" class="form-label">Email para Notificações Let's Encrypt:</label>
+                         <input type="email" class="form-control" id="modal_admin_email" name="admin_email" placeholder="seu@email.com">
+                          <div class="form-text">Necessário se ativar SSL. Usado para registro no Let's Encrypt e notificações importantes (ex: expiração).</div>
+                     </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check me-1"></i> Salvar Site</button>
+              </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+    <!-- Scripts Personalizados -->
+    <script>
+        // Guarda as instâncias dos gráficos para poder atualizá-las
+        let charts = {
+            cpu: null,
+            memory: null,
+            disk: null
+        };
+        let historicalData = null; // Armazena os dados carregados
+
+        // --- Função para formatar Timestamp (simplificada) ---
+        function formatTimestamp(isoString) {
+            if (!isoString) return '';
+            try {
+                const date = new Date(isoString);
+                // Formato HH:MM:SS (local)
+                return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                // Alternativa: DD/MM HH:MM
+                // return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {
+                console.error("Erro ao formatar data:", isoString, e);
+                return isoString; // Retorna original em caso de erro
+            }
+        }
+
+
+        // --- Função para criar ou atualizar um gráfico específico ---
+        function renderChart(canvasId, chartInstanceKey, labels, dataPoints, label, borderColor, backgroundColor) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+
+            const chartData = {
+                labels: labels,
+                datasets: [{
+                    label: label,
+                    data: dataPoints,
+                    fill: true, // Preenchimento abaixo da linha
+                    borderColor: borderColor,
+                    backgroundColor: backgroundColor + '40', // Adiciona transparência à cor de fundo
+                    tension: 0.2, // Curva suave
+                    pointRadius: 1, // Pontos menores
+                    pointHoverRadius: 5 // Ponto maior no hover
+                }]
+            };
+
+             const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false, // Permite definir altura via CSS ou container
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100, // Uso percentual
+                        ticks: {
+                             stepSize: 20 // Intervalo do eixo Y
+                        }
+                    },
+                    x: {
+                         ticks: {
+                             maxRotation: 0, // Não rotacionar labels
+                             autoSkip: true, // Pula alguns labels se ficarem apertados
+                             maxTicksLimit: 8 // Limita o número de labels no eixo X
+                         }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false // Esconde a legenda (já temos título no card)
+                    },
+                     tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                    }
+                },
+                 animation: {
+                    duration: 400 // Animação mais rápida na atualização
+                 }
+            };
+
+
+            if (charts[chartInstanceKey]) {
+                // Atualiza dados e re-renderiza
+                charts[chartInstanceKey].data = chartData;
+                charts[chartInstanceKey].update();
+            } else {
+                // Cria novo gráfico
+                charts[chartInstanceKey] = new Chart(ctx, {
+                    type: 'line', // Tipo de gráfico de linha
+                    data: chartData,
+                    options: chartOptions
+                });
+            }
+        }
+
+        // --- Função para buscar dados históricos e renderizar todos os gráficos ---
+        async function fetchAndRenderCharts(period = 'log_5min') {
+             const loadingMsg = document.getElementById('charts-loading-msg');
+             const errorMsg = document.getElementById('charts-error-msg');
+             loadingMsg.style.display = 'block';
+             errorMsg.style.display = 'none';
+
+             // Remove a classe 'active' de todos os botões e adiciona ao selecionado
+             document.querySelectorAll('.chart-period-selector .btn').forEach(btn => btn.classList.remove('active'));
+             const activeButton = document.querySelector(`.chart-period-selector .btn[data-period="${period}"]`);
+             if (activeButton) activeButton.classList.add('active');
+
+
+            try {
+                 // Busca os dados apenas se ainda não foram carregados
+                 if (!historicalData) {
+                     const response = await fetch('/system_stats_history');
+                     if (!response.ok) {
+                         throw new Error(`HTTP error! status: ${response.status}`);
+                     }
+                     historicalData = await response.json();
+                 }
+
+                if (historicalData.error) {
+                    throw new Error(historicalData.error);
+                }
+
+                const logs = historicalData[period] || []; // Usa o período selecionado
+
+                 if (!logs || logs.length === 0) {
+                    loadingMsg.textContent = `Nenhum dado disponível para o período selecionado (${period.replace('log_','')}).`;
+                    // Limpa gráficos existentes se não houver dados
+                    if (charts.cpu) { charts.cpu.data.labels = []; charts.cpu.data.datasets[0].data = []; charts.cpu.update(); }
+                    if (charts.memory) { charts.memory.data.labels = []; charts.memory.data.datasets[0].data = []; charts.memory.update(); }
+                    if (charts.disk) { charts.disk.data.labels = []; charts.disk.data.datasets[0].data = []; charts.disk.update(); }
+                    return; // Sai se não houver logs
+                 }
+
+
+                // Prepara dados para Chart.js
+                const labels = logs.map(entry => formatTimestamp(entry.timestamp));
+                const cpuData = logs.map(entry => entry.cpu_usage);
+                const memoryData = logs.map(entry => entry.memory_usage);
+                const diskData = logs.map(entry => entry.disk_usage);
+
+                // Renderiza/Atualiza os gráficos
+                renderChart('cpuChart', 'cpu', labels, cpuData, 'CPU Usage (%)', '#0d6efd', '#0d6efd'); // Azul Bootstrap
+                renderChart('memoryChart', 'memory', labels, memoryData, 'Memory Usage (%)', '#0dcaf0', '#0dcaf0'); // Ciano Bootstrap
+                renderChart('diskChart', 'disk', labels, diskData, 'Disk Usage (%)', '#ffc107', '#ffc107'); // Amarelo Bootstrap
+
+                loadingMsg.style.display = 'none'; // Esconde mensagem de carregamento
+
+            } catch (error) {
+                console.error("Erro ao buscar ou renderizar gráficos:", error);
+                loadingMsg.style.display = 'none';
+                errorMsg.style.display = 'block';
+                // Limpa gráficos em caso de erro
+                if (charts.cpu) { charts.cpu.destroy(); charts.cpu = null; }
+                if (charts.memory) { charts.memory.destroy(); charts.memory = null; }
+                if (charts.disk) { charts.disk.destroy(); charts.disk = null; }
+            }
+        }
+
+        // --- Função chamada pelos botões de período ---
+        function updateCharts(buttonElement) {
+             const selectedPeriod = buttonElement.getAttribute('data-period');
+             fetchAndRenderCharts(selectedPeriod); // Re-renderiza com o novo período
+        }
+
+        // --- Função para mostrar/esconder campos DO MODAL ---
+        function toggleModalFields() {
+            const type = document.getElementById('modal_site_type').value;
+            const phpFields = document.getElementById('modal_php_fields');
+            const pythonNodeFields = document.getElementById('modal_python_node_fields');
+            const pathInput = document.getElementById('modal_path');
+            const portInput = document.getElementById('modal_port');
+            const commandInput = document.getElementById('modal_command');
+            // const workdirInput = document.getElementById('modal_workdir'); // Não precisa de required geralmente
+
+            if (type === 'php') {
+                phpFields.classList.remove('hidden');
+                pythonNodeFields.classList.add('hidden');
+                pathInput.required = true;
+                portInput.required = false;
+                commandInput.required = false;
+            } else { // python_node
+                phpFields.classList.add('hidden');
+                pythonNodeFields.classList.remove('hidden');
+                pathInput.required = false;
+                portInput.required = true;
+                commandInput.required = true;
+            }
+        }
+
+        // --- Função para buscar e atualizar as estatísticas do sistema ---
+        async function fetchSystemStats() {
+            try {
+                const response = await fetch('/system_stats');
+                if (!response.ok) {
+                    console.error("Erro ao buscar stats:", response.status, response.statusText);
+                     // Poderia desabilitar/mostrar erro na seção de stats
+                    return;
+                }
+                const stats = await response.json();
+
+                if (stats.error) {
+                     console.error("Erro no backend ao buscar stats:", stats.error);
+                     // Poderia desabilitar/mostrar erro na seção de stats
+                     return;
+                }
+
+                // Atualiza CPU
+                const cpuProgress = document.getElementById('cpu-progress');
+                const cpuProgressContainer = document.getElementById('cpu-progress-container');
+                if (cpuProgress && cpuProgressContainer) {
+                    const cpuUsage = parseFloat(stats.cpu_usage || 0).toFixed(1);
+                    cpuProgress.style.width = cpuUsage + '%';
+                    cpuProgress.textContent = cpuUsage + '%';
+                    cpuProgressContainer.setAttribute('aria-valuenow', cpuUsage);
+                }
+
+                // Atualiza Memória
+                const memoryProgress = document.getElementById('memory-progress');
+                const memoryProgressContainer = document.getElementById('memory-progress-container');
+                const memoryDetails = document.getElementById('memory-details');
+                 if (memoryProgress && memoryProgressContainer && memoryDetails) {
+                    const memoryUsage = parseFloat(stats.memory_usage || 0).toFixed(1);
+                    memoryProgress.style.width = memoryUsage + '%';
+                    memoryProgress.textContent = memoryUsage + '%';
+                    memoryProgressContainer.setAttribute('aria-valuenow', memoryUsage);
+                    memoryDetails.textContent = `(${stats.memory_used || 0} GB / ${stats.memory_total || 0} GB)`;
+                }
+
+                 // Atualiza Disco
+                const diskProgress = document.getElementById('disk-progress');
+                const diskProgressContainer = document.getElementById('disk-progress-container');
+                const diskDetails = document.getElementById('disk-details');
+                 if (diskProgress && diskProgressContainer && diskDetails) {
+                    const diskUsage = parseFloat(stats.disk_usage || 0).toFixed(1);
+                    diskProgress.style.width = diskUsage + '%';
+                    diskProgress.textContent = diskUsage + '%';
+                    diskProgressContainer.setAttribute('aria-valuenow', diskUsage);
+                    diskDetails.textContent = `(${stats.disk_used || 0} GB / ${stats.disk_total || 0} GB)`;
+                }
+
+            } catch (error) {
+                console.error("Erro de rede ou JS ao buscar stats:", error);
+                 // Poderia desabilitar/mostrar erro na seção de stats
+            }
+        }
+
+        // --- Inicialização quando o DOM estiver pronto ---
+        document.addEventListener('DOMContentLoaded', function() {
+             // Garante o estado inicial correto dos campos do modal
+             toggleModalFields();
+
+             // Inicializa Tooltips do Bootstrap (se houver)
+             var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+             var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+               return new bootstrap.Tooltip(tooltipTriggerEl)
+             })
+
+            // Busca inicial de stats e define intervalo
+            fetchSystemStats();
+            setInterval(fetchSystemStats, 7000); // Atualiza a cada 7 segundos
+
+             // Busca inicial dos dados históricos e renderiza os gráficos
+             fetchAndRenderCharts('log_5min'); // Carrega o período padrão inicial
+
+            // Adiciona listener para limpar/resetar o formulário do modal quando ele for fechado
+             var addSiteModal = document.getElementById('addSiteModal');
+             if (addSiteModal) {
+                 addSiteModal.addEventListener('hidden.bs.modal', function (event) {
+                     // Encontra o formulário dentro do modal
+                     var form = event.target.querySelector('form');
+                     if (form) {
+                         form.reset(); // Reseta os campos do formulário
+                         toggleModalFields(); // Garante que os campos corretos estejam visíveis após reset
+                     }
+                 });
+             }
+
+             // Verifica se alguma aba já está ativa (definida pelo servidor via Jinja)
+             const activeTabButton = document.querySelector('#mainTabs .nav-link.active');
+
+             // Se nenhuma aba foi marcada como ativa pelo servidor, ativa a primeira aba (Sistema)
+             if (!activeTabButton) {
+                 const firstTabButton = document.querySelector('#mainTabs button[data-bs-toggle="tab"]'); // Pega o primeiro botão de tab
+                 if (firstTabButton) {
+                     try {
+                         const firstTabInstance = bootstrap.Tab.getOrCreateInstance(firstTabButton);
+                         if (firstTabInstance) {
+                             firstTabInstance.show();
+                         } else {
+                             console.warn("Não foi possível obter instância da primeira aba.");
+                         }
+                     } catch(e) {
+                         console.error("Erro ao tentar ativar a primeira aba:", e);
+                     }
+                 }
+             }
+
+             // REMOVIDA a lógica que salvava a aba clicada no localStorage
+             // REMOVIDA a lógica que tentava restaurar a aba do localStorage
+
+             // O listener 'shown.bs.tab' para salvar no localStorage também foi removido.
+
+         });
+
+    </script>
+</body>
+</html>

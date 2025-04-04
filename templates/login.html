@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CicoPanel - Login</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        body {
+            background-color: #e9ecef; /* Fundo cinza claro */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            padding: 2.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+        }
+        .login-card .card-title {
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            color: #343a40; /* Cor escura para o título */
+            text-align: center;
+        }
+        .login-card .form-control {
+            padding: 0.75rem 1rem;
+            border-radius: 0.375rem;
+        }
+        .login-card .btn-primary {
+            padding: 0.75rem;
+            font-weight: 500;
+        }
+        .login-card .input-group-text {
+            background-color: #f8f9fa; /* Fundo claro para ícones */
+            border-right: none; /* Remove borda direita do ícone */
+        }
+        .login-card .form-control {
+             border-left: none; /* Remove borda esquerda do input após ícone */
+        }
+         .input-group:focus-within .input-group-text {
+            border-color: #86b7fe; /* Cor da borda do ícone ao focar no input (cor do Bootstrap) */
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25); /* Sombra do Bootstrap no foco */
+        }
+         .flash-messages-container {
+            z-index: 1050; /* Acima de outros elementos */
+            width: auto; /* Ajusta à largura da mensagem */
+            min-width: 300px; /* Largura mínima */
+            max-width: 90%; /* Largura máxima */
+         }
+    body {
+            background-color: #e9ecef; /* Fundo cinza claro */
+            display: flex;
+            flex-direction: column; /* Empilha itens verticalmente */
+            align-items: center; /* Centraliza itens horizontalmente */
+            justify-content: center; /* Centraliza o bloco todo verticalmente */
+            min-height: 100vh;
+            padding: 1rem; /* Adiciona um padding geral */
+        }
+        .flash-messages-container {
+             /* REMOVIDO: position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); z-index: 1050; */
+             width: 100%; /* Ocupa a largura do espaço centralizado pelo body */
+             max-width: 400px; /* Largura máxima igual ao card */
+             margin-bottom: 1rem; /* Espaço abaixo das mensagens, antes do card */
+         }
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            padding: 2.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+            /* Não precisa mais de margem auto horizontal pois o body flex já centraliza */
+        }
+        .login-card .card-title {
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            color: #343a40; /* Cor escura para o título */
+            text-align: center;
+        }
+        .login-card .form-control {
+            padding: 0.75rem 1rem;
+            border-radius: 0.375rem;
+        }
+        .login-card .btn-primary {
+            padding: 0.75rem;
+            font-weight: 500;
+        }
+        .login-card .input-group-text {
+            background-color: #f8f9fa; /* Fundo claro para ícones */
+            border-right: none; /* Remove borda direita do ícone */
+        }
+        .login-card .form-control {
+             border-left: none; /* Remove borda esquerda do input após ícone */
+        }
+         .input-group:focus-within .input-group-text {
+            border-color: #86b7fe; /* Cor da borda do ícone ao focar no input (cor do Bootstrap) */
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25); /* Sombra do Bootstrap no foco */
+        }
+         /* Estilos para os alertas dentro do container */
+         .flash-messages-container .alert {
+            padding: 0.8rem 1rem;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+         }
+         .flash-messages-container .alert i {
+             margin-right: 0.6rem;
+         }
+         .flash-messages-container .alert .btn-close {
+             margin-left: auto; /* Empurra o botão de fechar para a direita */
+             padding: 0.5rem 0.75rem !important;
+             position: inherit;
+         }
+    </style>
+</head>
+<body>
+
+    <!-- Flash Messages ANTES do card -->
+    <div class="flash-messages-container"> {# Usei classe em vez de ID aqui, mas pode ser ID #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                {% set alert_class = 'alert-info' %} {# Padrão #}
+                {% if category == 'success' %}
+                    {% set alert_class = 'alert-success' %}
+                {% elif category == 'error' %}
+                    {% set alert_class = 'alert-danger' %}
+                {% elif category == 'warning' %}
+                    {% set alert_class = 'alert-warning' %}
+                {% endif %}
+                <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert"> {# Removi mb-2 daqui #}
+                    <i class="fas fa-exclamation-circle"></i> {# Ícone genérico, pode ser melhorado #}
+                    <span>{{ message }}</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    </div>
+
+    <!-- Card de Login DEPOIS das mensagens -->
+    <div class="card login-card">
+        <h3 class="card-title"><i class="fas fa-cogs me-2"></i>CicoPanel Login</h3>
+        <form method="post">
+            <div class="mb-3 input-group">
+                 <span class="input-group-text"><i class="fas fa-user"></i></span>
+                <input type="text" class="form-control" id="username" name="username" placeholder="Usuário" required autofocus>
+            </div>
+            <div class="mb-4 input-group">
+                 <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                <input type="password" class="form-control" id="password" name="password" placeholder="Senha" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Entrar</button>
+        </form>
+    </div>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+</body>
+</html>
