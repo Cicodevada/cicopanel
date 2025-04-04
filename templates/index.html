@@ -445,18 +445,12 @@
                                                 {% endif %}
                                             {% else %}
                                                 {% if can_manage_ssl %}
-                                                     {# Para criar, ainda precisamos do email. Por simplicidade, vamos linkar para edição ou só mostrar desativado por enquanto. #}
-                                                     {# O ideal seria um modal pedindo o email aqui. #}
-                                                     {# Versão atual: Apenas mostra desativado ou permite admin criar com email padrão #}
-                                                     {% if is_admin %} {# Admin pode tentar criar com email padrão #}
-                                                         <form action="{{ url_for('ssl_action', domain=site.domain) }}" method="post" onsubmit="return confirm('Tentar CRIAR um certificado SSL para {{ site.domain }}? (Será usado um email padrão de admin)');" class="d-inline" data-bs-toggle="tooltip" title="SSL Desativado (Admin: Clique para tentar criar)">
+                                                     
+                                                         <form action="{{ url_for('ssl_action', domain=site.domain) }}" method="post" onsubmit="return confirm('Tentar CRIAR um certificado SSL para {{ site.domain }}? (Será usado um email padrão de admin)');" class="d-inline" data-bs-toggle="tooltip" title="SSL Desativado (Clique para ativar o SSL)">
                                                             <button type="submit" class="btn btn-link p-0 border-0 align-baseline text-decoration-none">
                                                                 <span class="badge bg-secondary"><i class="fas fa-lock-open"></i> Desativado <i class="fas fa-plus-circle fa-xs ms-1"></i></span> {# Ícone de adicionar #}
                                                             </button>
                                                         </form>
-                                                     {% else %} {# Usuário normal não pode criar pelo badge sem email #}
-                                                          <span class="badge bg-secondary" data-bs-toggle="tooltip" title="SSL Desativado. Ative pela edição (não implementado) ou recriando o site com a opção SSL."><i class="fas fa-lock-open"></i> Desativado</span>
-                                                     {% endif %}
 
                                                 {% else %} {# Não pode gerenciar #}
                                                     <span class="badge bg-secondary" data-bs-toggle="tooltip" title="SSL Desativado"><i class="fas fa-lock-open"></i> Desativado</span>
@@ -927,30 +921,17 @@
                   commandInput.required = true;
               }
   
-              // Lógica para habilitar/desabilitar e tornar email obrigatório com base no SSL
-              const sslCheckbox = document.getElementById('modal_get_ssl');
+              // Lógica para habilitar/desabilitar email REMOVIDA - Email agora é sempre obrigatório e habilitado
               const emailInput = document.getElementById('modal_admin_email');
-  
-               // Verifica se os elementos SSL existem
-              if (sslCheckbox && emailInput) {
-                   if (sslCheckbox.checked) {
-                      emailInput.required = true;
-                       emailInput.disabled = false;
-                       // Adiciona um pequeno aviso visual se o campo estiver vazio
-                       if (!emailInput.value) {
-                          emailInput.classList.add('is-invalid');
-                       } else {
-                           emailInput.classList.remove('is-invalid');
-                       }
-                   } else {
-                       emailInput.required = false;
-                       emailInput.disabled = true;
-                       emailInput.classList.remove('is-invalid');
-                       // Opcional: Limpar o valor se desmarcar
-                       // emailInput.value = '';
-                   }
+
+              // Garante que o campo email sempre esteja habilitado e seja requerido (pelo HTML 'required')
+              if (emailInput) {
+                  emailInput.disabled = false;
+                  // O atributo 'required' já está no HTML, não precisa ser setado aqui.
+                  // Remove a classe 'is-invalid' que poderia ter sido adicionada por lógica anterior
+                  emailInput.classList.remove('is-invalid');
               } else {
-                   // console.warn("Elementos de SSL (checkbox ou email input) não encontrados no modal de sites.");
+                  console.warn("Elemento de input de email (modal_admin_email) não encontrado.");
               }
           }
   
@@ -1032,18 +1013,7 @@
                    sslCheckbox.addEventListener('change', toggleModalFields);
                }
                 // Adiciona listener no input de email para remover o erro visual ao digitar
-               const emailInput = document.getElementById('modal_admin_email');
-               if (emailInput) {
-                   emailInput.addEventListener('input', () => {
-                        // Verifica se o checkbox SSL existe e está marcado
-                        const sslCheck = document.getElementById('modal_get_ssl');
-                        if (sslCheck && sslCheck.checked && emailInput.required && emailInput.value) {
-                           emailInput.classList.remove('is-invalid');
-                       } else if (sslCheck && sslCheck.checked && emailInput.required && !emailInput.value) {
-                            emailInput.classList.add('is-invalid');
-                       }
-                   });
-               }
+               // REMOVIDO listener que adicionava/removia 'is-invalid' baseado no checkbox SSL.
   
   
                // Inicializa Tooltips do Bootstrap (se houver)
@@ -1122,23 +1092,24 @@
   
               if (addSiteForm && saveSiteButton) {
                   addSiteForm.addEventListener('submit', function(event) { // Adicionado event
-                      // Validação simples do email se SSL estiver checado
-                      const sslCheck = document.getElementById('modal_get_ssl');
-                      const emailInput = document.getElementById('modal_admin_email');
-                      if (sslCheck && emailInput && sslCheck.checked && !emailInput.value) {
-                           event.preventDefault(); // Impede o envio do formulário
-                           emailInput.classList.add('is-invalid'); // Mostra erro
-                           alert('O campo Email é obrigatório quando a opção SSL está ativada.'); // Alerta simples
-                           return; // Sai da função
-                       }
-  
-  
-                      // Desabilita o botão e mostra spinner se a validação passar
-                      saveSiteButton.disabled = true;
-                      saveSiteButton.innerHTML = `
-                          <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                          Salvando...
-                      `;
+                      // REMOVIDA validação JS específica do email + SSL. O 'required' do HTML cuidará da obrigatoriedade.
+
+                      // Verifica se o formulário é válido (incluindo campos 'required' pelo HTML)
+                      if (addSiteForm.checkValidity()) {
+                          // Validação OK: Desabilita botão e mostra spinner
+                          saveSiteButton.disabled = true;
+                          saveSiteButton.innerHTML = `
+                              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                              Salvando...
+                          `;
+                          // Permite que o formulário seja enviado
+                      } else {
+                          // Validação FALHOU (o navegador geralmente impede o envio e mostra hints)
+                          // Opcional: adicionar feedback visual extra se necessário
+                          console.log("Formulário inválido, envio cancelado pelo navegador.");
+                          // Importante: Impedir o envio do formulário se a validação falhar (embora o navegador deva fazer isso)
+                          // event.preventDefault(); // Descomente se necessário, mas checkValidity geralmente para antes do submit
+                      }
                   });
   
                    // Reseta o botão se o modal for fechado
@@ -1147,9 +1118,12 @@
                       addSiteModalElement.addEventListener('hidden.bs.modal', function () {
                           saveSiteButton.disabled = false;
                           saveSiteButton.innerHTML = '<i class="fas fa-check me-1"></i> Salvar Site';
-                           // Também remove a classe de erro do email ao fechar
+                           // Remove a classe de erro do email ao fechar (se ainda houver alguma)
                            const emailInput = document.getElementById('modal_admin_email');
                            if(emailInput) emailInput.classList.remove('is-invalid');
+                           // Garante que o botão volte ao estado normal
+                           saveSiteButton.disabled = false;
+                           saveSiteButton.innerHTML = '<i class="fas fa-check me-1"></i> Salvar Site';
                       });
                    }
               }

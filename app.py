@@ -725,10 +725,11 @@ def add_site():
         flash(f"O domínio '{domain}' já existe.", 'error')
         return redirect(url_for('index'))
 
-    if get_ssl and not admin_email:
-         flash("É necessário fornecer um email para obter certificado SSL.", 'error')
-         return redirect(url_for('index'))
-
+    # REMOVIDA validação 'if get_ssl and not admin_email:' pois o email agora é sempre requerido pelo formulário HTML.
+    # Validação de formato de email poderia ser adicionada aqui se desejado.
+    if not admin_email: # Verificação básica se o email veio vazio (apesar do required do HTML)
+        flash("O campo Email é obrigatório.", 'error')
+        return redirect(url_for('index'))
 
     new_site_data = {
         "domain": domain,
@@ -846,9 +847,8 @@ def add_site():
     # Adiciona o usuário que criou o site aos dados
     new_site_data['created_by_user'] = session.get('username')
 
-    # Adiciona o email SE SSL foi solicitado
-    if get_ssl:
-        new_site_data['admin_email'] = admin_email
+    # Adiciona o email fornecido (sempre obrigatório agora)
+    new_site_data['admin_email'] = admin_email
 
     # 6. Salvar dados do site (ANTES de permissões/link para ter o registro mesmo se falharem)
     sites.append(new_site_data)
