@@ -661,17 +661,25 @@ def system_stats_history():
 @app.route('/')
 @login_required
 def index():
-    """Exibe a página inicial com a lista de sites, IP público e usuários (se admin)."""
-    sites = load_sites()
+    """Exibe a página inicial com a lista de sites (filtrada por usuário), IP público e usuários (se admin)."""
+    all_sites = load_sites()
     public_ip = get_public_ip() # Busca o IP público
+    current_user = session.get('username')
+    is_admin = (current_user == 'cico')
+
+    # Filtra os sites com base no usuário logado
+    if is_admin:
+        sites_to_display = all_sites # Admin vê todos
+    else:
+        sites_to_display = [site for site in all_sites if site.get('created_by_user') == current_user]
 
     # Carrega usuários se o usuário logado for 'cico' para disponibilizar na aba
     users_list = None
-    if session.get('username') == 'cico':
+    if is_admin:
         users_list = load_users()
 
-    # Passa sites, IP e usuários (se aplicável) para o template
-    return render_template('index.html', sites=sites, public_ip=public_ip, users=users_list)
+    # Passa os sites filtrados, IP, usuários (se aplicável) e status de admin para o template
+    return render_template('index.html', sites=sites_to_display, public_ip=public_ip, users=users_list, is_admin=is_admin)
 
 
 # Rota única para estatísticas do sistema
@@ -838,8 +846,12 @@ def add_site():
     # Adiciona o usuário que criou o site aos dados
     new_site_data['created_by_user'] = session.get('username')
 
+    # Adiciona o email SE SSL foi solicitado
+    if get_ssl:
+        new_site_data['admin_email'] = admin_email
+
     # 6. Salvar dados do site (ANTES de permissões/link para ter o registro mesmo se falharem)
-    sites.append(new_site_data) # REMOVIDA A LINHA DUPLICADA AQUI
+    sites.append(new_site_data)
     save_sites(sites)
 
     # --- Passos Adicionais: Permissões e Link Simbólico (APÓS salvar no JSON) ---
@@ -870,10 +882,84 @@ def add_site():
     return redirect(url_for('index'))
 
 
+@app.route('/ssl_action/<domain>', methods=['POST'])
+@login_required
+def ssl_action(domain):
+    """Tenta criar ou renovar o certificado SSL para um domínio."""
+    sites = load_sites()
+    site = next((s for s in sites if s['domain'] == domain), None)
+
+    if not site:
+        flash(f"Site '{domain}' não encontrado.", 'error')
+        return redirect(url_for('index'))
+
+    # --- Verificação de Permissão ---
+    current_user = session.get('username')
+    is_admin = (current_user == 'cico')
+    site_owner = site.get('created_by_user')
+
+    # Permitir apenas admin ou o dono do site
+    if not is_admin and site_owner != current_user:
+        flash("Você não tem permissão para gerenciar o SSL deste site.", 'error')
+        return redirect(url_for('index'))
+    # --- Fim da Verificação ---
+
+    admin_email = site.get('admin_email')
+
+    # Se o SSL já estava ativo, tenta renovar (precisa do email)
+    if site.get('ssl_enabled'):
+        if not admin_email:
+             flash(f"Não foi possível encontrar o email associado ao SSL para '{domain}'. A renovação automática pode falhar. Considere recriar o certificado (ação manual necessária).", 'warning')
+             # Mesmo sem email, tenta rodar o certbot, pode ser que ele use um email padrão ou não precise para renovar.
+             # Mas é melhor ter o email. Por ora, vamos tentar mesmo assim.
+             # Uma alternativa seria impedir a ação se o email não estiver no JSON.
+
+        flash(f"Tentando renovar/reconfigurar SSL para {domain}...", 'info')
+        success = get_ssl_cert(domain, admin_email if admin_email else "default@example.com") # Passa um email padrão se não encontrar? Ou melhor falhar? Vamos usar um placeholder por enquanto, mas idealmente deveria falhar.
+                                                                                           # Melhoria: Se não tiver email, flash(error) e return.
+        if not admin_email:
+             flash(f"Aviso: Tentativa de renovação SSL para '{domain}' sem email registrado no painel. A operação pode falhar ou usar um email padrão do Certbot.", 'warning')
+
+
+    # Se o SSL estava desativado, tenta criar (precisa do email)
+    else:
+        if not admin_email:
+            # Tenta pegar o email do formulário (se viesse de um modal, por exemplo)
+            # Como estamos vindo de um clique direto, não temos o email aqui.
+            # SOLUÇÃO: Exigir que a criação seja feita apenas pelo admin ou pedir email.
+            # Por simplicidade agora, vamos exigir que seja admin OU que o email já esteja no JSON
+            # (o que não deveria acontecer se ssl_enabled=false, a menos que tenha sido desabilitado manualmente).
+             if not is_admin:
+                 flash(f"Apenas o administrador pode ativar o SSL para '{domain}' diretamente pelo badge se o email não foi previamente configurado.", 'error')
+                 return redirect(url_for('index'))
+             else:
+                 # Se for admin e não tem email, usar um email padrão? Ou pegar do config?
+                 # Por agora, vamos usar um email fixo para o admin (NÃO IDEAL)
+                 admin_email = "admin@cicopanel.local" # TODO: Tornar configurável ou pedir ao admin
+                 flash(f"Tentando criar SSL para {domain} (como admin, usando email padrão '{admin_email}')...", 'info')
+
+        else: # Tem email no JSON, mesmo que ssl_enabled seja false (estranho, mas ok)
+              flash(f"Tentando criar SSL para {domain} usando o email registrado '{admin_email}'...", 'info')
+
+        success = get_ssl_cert(domain, admin_email)
+        # Se teve sucesso, atualiza o email no JSON caso tenha sido usado o padrão do admin
+        if success and is_admin and not site.get('admin_email'):
+             site['admin_email'] = admin_email
+
+
+    # Atualiza o status no JSON baseado no resultado
+    # Mesmo que já fosse True, atualiza para refletir o resultado da última operação
+    site['ssl_enabled'] = success
+    save_sites(sites)
+
+    # Mensagem final já foi dada por get_ssl_cert
+    return redirect(url_for('index'))
+
+
 @app.route('/delete_site/<domain>', methods=['POST'])
 @login_required
 def delete_site(domain):
-    """Remove um site existente."""
+    """Remove um site existente, verificando a permissão do usuário."""
     sites = load_sites()
     site_to_delete = None
     for site in sites:
@@ -885,7 +971,18 @@ def delete_site(domain):
         flash(f"Site com domínio '{domain}' não encontrado.", 'error')
         return redirect(url_for('index'))
 
-    print(f"Iniciando exclusão do site: {domain}")
+    # --- Verificação de Permissão ---
+    current_user = session.get('username')
+    is_admin = (current_user == 'cico')
+    site_owner = site_to_delete.get('created_by_user')
+
+    if not is_admin and site_owner != current_user:
+        flash("Você não tem permissão para excluir este site.", 'error')
+        return redirect(url_for('index'))
+    # --- Fim da Verificação ---
+
+
+    print(f"Iniciando exclusão do site: {domain} (solicitado por: {current_user})")
 
     # 1. Parar, desabilitar e remover serviço Systemd (se aplicável)
     systemd_removed = True # Assume sucesso se não for python/node
@@ -979,12 +1076,14 @@ def users_management_page(): # Renomeei a função para evitar conflito interno 
     # Esta rota agora renderiza a página principal,
     # mas o template index.html usará os dados passados para popular a aba correta.
     all_users = load_users()
-    sites = load_sites() # Carrega sites para passar ao template principal
+    all_sites = load_sites() # Carrega TODOS os sites para o admin na aba de usuários
     public_ip = get_public_ip()
+    is_admin = True # Já que a rota tem @admin_required
     # Indica qual aba deve estar ativa no template
     active_tab = 'users'
     # Renderiza o template principal, passando os dados necessários e a aba ativa
-    return render_template('index.html', sites=sites, public_ip=public_ip, users=all_users, active_tab=active_tab)
+    # Passamos all_sites aqui, pois a visão de usuários é do admin
+    return render_template('index.html', sites=all_sites, public_ip=public_ip, users=all_users, is_admin=is_admin, active_tab=active_tab)
 
 
 @app.route('/add_user', methods=['POST'])

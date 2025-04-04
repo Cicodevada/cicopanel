@@ -253,7 +253,8 @@
                     <i class="fas fa-globe me-1"></i> Sites
                 </button>
             </li>
-             {% if session.username == 'cico' %} {# Mostra aba Usuários apenas para cico #}
+             {# Usa a variável is_admin passada pelo Flask #}
+             {% if is_admin %} {# Mostra aba Usuários apenas para cico #}
             <li class="nav-item" role="presentation">
                  {# Aba Usuários: ativa se active_tab == 'users' #}
                 <button class="nav-link {% if active_tab == 'users' %}active{% endif %}" id="users-tab" data-bs-toggle="tab" data-bs-target="#users-tab-pane" type="button" role="tab" aria-controls="users-tab-pane" aria-selected="{% if active_tab == 'users' %}true{% else %}false{% endif %}">
@@ -261,6 +262,15 @@
                 </button>
             </li>
             {% endif %}
+            
+            <li class="nav-item" role="presentation">
+                <!-- Coloca o href como servidor/phpmyadmin (Removendo a porta atual) -->
+                <a href="{{ request.scheme }}://{{ request.host.split(':')[0] }}/phpmyadmin" target="_blank" style="text-decoration: none;">
+                    <button class="nav-link" id="sites-tab" type="button">
+                        <i class="fas fa-database"></i> PHPMyAdmin
+                    </button>
+                </a>
+            </li>
         </ul>
 
         <!-- Conteúdo das Abas -->
@@ -369,6 +379,10 @@
                             <thead class="table-light">
                                 <tr>
                                     <th scope="col"><i class="fas fa-globe me-1"></i> Domínio</th>
+                                    {# Coluna Proprietário - Visível apenas para admin #}
+                                    {% if is_admin %}
+                                    <th scope="col"><i class="fas fa-user-shield me-1"></i> Proprietário</th>
+                                    {% endif %}
                                     <th scope="col" class="text-center"><i class="fas fa-cog me-1"></i> Tipo</th>
                                     <th scope="col"><i class="fas fa-info-circle me-1"></i> Detalhes</th>
                                     <th scope="col" class="text-center"><i class="fas fa-shield-alt me-1"></i> SSL</th>
@@ -376,9 +390,21 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                {# Itera sobre os sites filtrados passados pelo Flask #}
                                 {% for site in sites %}
                                     <tr>
                                         <td><a href="http://{{ site.domain }}" target="_blank">{{ site.domain }}</a></td>
+                                        {# Célula Proprietário - Visível apenas para admin #}
+                                        {% if is_admin %}
+                                        <td>
+                                            <i class="fas fa-user me-1 text-muted"></i>
+                                            {{ site.created_by_user | default('N/A') }}
+                                            {# Destaque se for o próprio admin #}
+                                            {% if site.created_by_user == 'cico' %}
+                                                <span class="badge bg-primary ms-1" title="Administrador"><i class="fas fa-shield-alt"></i></span>
+                                            {% endif %}
+                                        </td>
+                                        {% endif %}
                                         <td class="text-center">
                                             {% if site.type == 'php' %}
                                                 <span class="badge bg-primary"><i class="fab fa-php me-1"></i> PHP</span>
@@ -397,10 +423,35 @@
                                             {% endif %}
                                         </td>
                                         <td class="text-center">
+                                            {% set can_manage_ssl = (is_admin or site.created_by_user == session.username) %}
                                             {% if site.ssl_enabled %}
-                                                <span class="badge bg-success"><i class="fas fa-lock"></i> Ativado</span>
+                                                {% if can_manage_ssl %}
+                                                    <form action="{{ url_for('ssl_action', domain=site.domain) }}" method="post" onsubmit="return confirm('Tentar renovar/reconfigurar o certificado SSL para {{ site.domain }}?');" class="d-inline" data-bs-toggle="tooltip" title="SSL Ativado (Clique para tentar renovar/reconfigurar)">
+                                                        <button type="submit" class="btn btn-link p-0 border-0 align-baseline text-decoration-none">
+                                                            <span class="badge bg-success"><i class="fas fa-lock"></i> Ativado <i class="fas fa-sync-alt fa-xs ms-1"></i></span> {# Ícone de refresh #}
+                                                        </button>
+                                                    </form>
+                                                {% else %}
+                                                    <span class="badge bg-success" data-bs-toggle="tooltip" title="SSL Ativado"><i class="fas fa-lock"></i> Ativado</span>
+                                                {% endif %}
                                             {% else %}
-                                                <span class="badge bg-secondary"><i class="fas fa-lock-open"></i> Desativado</span>
+                                                {% if can_manage_ssl %}
+                                                     {# Para criar, ainda precisamos do email. Por simplicidade, vamos linkar para edição ou só mostrar desativado por enquanto. #}
+                                                     {# O ideal seria um modal pedindo o email aqui. #}
+                                                     {# Versão atual: Apenas mostra desativado ou permite admin criar com email padrão #}
+                                                     {% if is_admin %} {# Admin pode tentar criar com email padrão #}
+                                                         <form action="{{ url_for('ssl_action', domain=site.domain) }}" method="post" onsubmit="return confirm('Tentar CRIAR um certificado SSL para {{ site.domain }}? (Será usado um email padrão de admin)');" class="d-inline" data-bs-toggle="tooltip" title="SSL Desativado (Admin: Clique para tentar criar)">
+                                                            <button type="submit" class="btn btn-link p-0 border-0 align-baseline text-decoration-none">
+                                                                <span class="badge bg-secondary"><i class="fas fa-lock-open"></i> Desativado <i class="fas fa-plus-circle fa-xs ms-1"></i></span> {# Ícone de adicionar #}
+                                                            </button>
+                                                        </form>
+                                                     {% else %} {# Usuário normal não pode criar pelo badge sem email #}
+                                                          <span class="badge bg-secondary" data-bs-toggle="tooltip" title="SSL Desativado. Ative pela edição (não implementado) ou recriando o site com a opção SSL."><i class="fas fa-lock-open"></i> Desativado</span>
+                                                     {% endif %}
+
+                                                {% else %} {# Não pode gerenciar #}
+                                                    <span class="badge bg-secondary" data-bs-toggle="tooltip" title="SSL Desativado"><i class="fas fa-lock-open"></i> Desativado</span>
+                                                {% endif %}
                                             {% endif %}
                                         </td>
                                         <td class="actions-cell text-center">
@@ -430,7 +481,7 @@
             </div>
 
              <!-- Aba Usuários (Somente Admin) -->
-             {% if session.username == 'cico' %}
+             {% if is_admin %} {# Usa a variável is_admin passada pelo Flask #}
             <div class="tab-pane fade {% if active_tab == 'users' %}show active{% endif %}" id="users-tab-pane" role="tabpanel" aria-labelledby="users-tab" tabindex="0">
                  <h3 class="mb-4">Gerenciamento de Usuários</h3>
 
@@ -518,7 +569,7 @@
                      </div>
                  {% endif %}
             </div>
-            {% endif %} {# Fim do if session.username == 'cico' #}
+            {% endif %} {# Fim do if is_admin #}
 
         </div><!-- Fim Tab Content -->
 
@@ -603,7 +654,8 @@
               </div>
               <div class="modal-footer bg-light border-top"> {# Footer do modal com fundo claro #}
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="submit" class="btn btn-primary"><i class="fas fa-check me-1"></i> Salvar Site</button>
+                {# Adiciona ID ao botão de submit #}
+                <button type="submit" class="btn btn-primary" id="saveSiteButton"><i class="fas fa-check me-1"></i> Salvar Site</button>
               </div>
           </form>
         </div>
@@ -988,6 +1040,36 @@
              // REMOVIDA a lógica que tentava restaurar a aba do localStorage
 
              // O listener 'shown.bs.tab' para salvar no localStorage também foi removido.
+
+            // --- Listener para o botão de Salvar Site no Modal ---
+            const addSiteForm = document.querySelector('#addSiteModal form');
+            const saveSiteButton = document.getElementById('saveSiteButton');
+
+            if (addSiteForm && saveSiteButton) {
+                addSiteForm.addEventListener('submit', function() {
+                    // Desabilita o botão
+                    saveSiteButton.disabled = true;
+                    // Muda o texto e adiciona spinner
+                    saveSiteButton.innerHTML = `
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        Salvando...
+                    `;
+                     // Opcional: Você pode adicionar validação JS aqui antes de desabilitar,
+                     // se a validação falhar, não desabilite e não mude o texto.
+                });
+
+                 // Se o modal for fechado (por exemplo, clicando em Cancelar ou no X)
+                 // resetamos o botão para o estado original, caso o submit não tenha
+                 // redirecionado a página ainda (útil se houver validação JS futura).
+                var addSiteModalElement = document.getElementById('addSiteModal');
+                 if (addSiteModalElement) {
+                    addSiteModalElement.addEventListener('hidden.bs.modal', function () {
+                        saveSiteButton.disabled = false;
+                        saveSiteButton.innerHTML = '<i class="fas fa-check me-1"></i> Salvar Site';
+                    });
+                 }
+            }
+
 
          });
 
