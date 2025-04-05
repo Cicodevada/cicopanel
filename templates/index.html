@@ -180,6 +180,15 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
     <!-- Opcional: Adaptador de data para Chart.js (se precisar de formatação avançada de datas) -->
     <!-- <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script> -->
+    <style>
+        /* Estilo para links desabilitados */
+        a.disabled {
+            pointer-events: none; /* Impede cliques */
+            opacity: 0.65;        /* Aparência desabilitada */
+            cursor: not-allowed;  /* Cursor indica não permitido */
+            text-decoration: none; /* Remove sublinhado para parecer botão */
+        }
+    </style>
 </head>
 <body>
     <!-- Barra de Navegação -->
@@ -428,9 +437,13 @@
                                                 <i class="fas fa-door-open me-1 text-muted"></i> <strong>Porta:</strong> {{ site.port }} <br>
                                                 <i class="fas fa-terminal me-1 text-muted"></i> <strong>Comando:</strong> <code data-bs-toggle="tooltip" title="{{ site.command }}">{{ site.command | truncate(40, True) }}</code> <br>
                                                 {% if site.workdir %}<i class="fas fa-folder-open me-1 text-muted"></i> <strong>Caminho:</strong> <code>{{ site.workdir }}</code><br>{% endif %}
-                                                <i class="fas fa-cogs me-1 text-muted"></i> <strong>Serviço:</strong> 
-                                                <a title="Ver Logs" href="#" onclick="showLogs('site-teste-cico-diy.service', 'teste.cico.diy')">Logs</a> | 
-                                                <a title="Reiniciar Serviço" href="#" onclick="restartService('site-teste-cico-diy.service')">Reiniciar</a>
+                                                <i class="fas fa-cogs me-1 text-muted"></i> <strong>Serviço:</strong>
+                                                {% if site.service_name %} {# Garante que o serviço existe #}
+                                                    <a href="#" title="Ver Logs" onclick="showLogs('{{ site.service_name }}', '{{ site.domain }}')">Logs</a> | 
+                                                    <a href="#" id="restart-{{ site.service_name }}" title="Reiniciar Serviço" onclick="restartService(event, this, '{{ site.service_name }}')">Reiniciar</a>
+                                                {% else %}
+                                                    <span class="text-muted fst-italic">N/A</span>
+                                                {% endif %}
                                             {% endif %}
                                         </td>
                                         <td class="text-center">
@@ -698,7 +711,7 @@
               <h5 class="modal-title" id="logModalLabel"><i class="fas fa-terminal me-2"></i>Logs: <span>Carregando...</span></h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body p-0" style="height: 75vh;"> <!-- Remove padding e define altura fixa -->
+            <div class="p-0" style="height: 75vh;"> <!-- Remove padding e define altura fixa -->
               <iframe id="logFrame" src="about:blank" style="width: 100%; height: 100%; border: none;"></iframe>
             </div>
             <div class="modal-footer bg-light border-top">
@@ -1040,8 +1053,57 @@
                    tab.show();
               }
           }
-  
-          // --- Inicialização quando o DOM estiver pronto ---
+
+          // --- Função para Reiniciar Serviço Systemd ---
+          function restartService(event, element, serviceName) {
+              event.preventDefault(); // Impede a ação padrão do link '#'
+
+              if (element.classList.contains('disabled')) {
+                  return; // Não faz nada se já estiver desabilitado
+              }
+
+              const originalText = element.textContent; // Salva texto original
+              element.textContent = 'Reiniciando...'; // Muda o texto
+              element.classList.add('disabled'); // Adiciona classe para desabilitar visualmente e por eventos
+
+              fetch(`/restart_service/${encodeURIComponent(serviceName)}`, {
+                  method: 'POST', // Método POST para ações que alteram estado
+                  headers: {
+                      // 'Content-Type': 'application/json', // Não estamos enviando corpo JSON
+                      // Incluir cabeçalhos como CSRF se necessário
+                  }
+              })
+              .then(response => {
+                  if (!response.ok) {
+                      // Tenta ler a mensagem de erro do JSON retornado pelo backend
+                      return response.json().then(errData => {
+                           throw new Error(errData.error || `Erro HTTP ${response.status}`);
+                      }).catch(parseError => {
+                           // Se não conseguir parsear JSON, lança erro HTTP padrão
+                           throw new Error(`Erro HTTP ${response.status} ao reiniciar o serviço.`);
+                      });
+                  }
+                  return response.json(); // Espera um { success: true, message: "..." }
+              })
+              .then(data => {
+                   console.log(data.message);
+                   // Opcional: Mostrar um feedback de sucesso (ex: um toast rápido)
+                   // showToast(data.message || 'Serviço reiniciado com sucesso!', 'success');
+                   alert(data.message || 'Serviço reiniciado com sucesso!'); // Alert simples por enquanto
+              })
+              .catch(error => {
+                  console.error('Falha ao reiniciar serviço:', error);
+                  // Mostrar feedback de erro para o usuário
+                  alert(`Falha ao reiniciar o serviço '${serviceName}':\n${error.message}`);
+              })
+              .finally(() => {
+                  // SEMPRE reabilita o botão e restaura o texto
+                  element.textContent = originalText;
+                  element.classList.remove('disabled');
+              });
+          }
+
+          // --- Função para ativar a aba de usuários programaticamente ---
           document.addEventListener('DOMContentLoaded', function() {
                // Garante o estado inicial correto dos campos do modal e do email SSL
                toggleModalFields();

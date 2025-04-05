@@ -1223,6 +1223,10 @@ def delete_user(username):
     return redirect(url_for('users_management_page'))
 
 
+import re # Importa o módulo de expressões regulares (se ainda não estiver)
+
+import re # Importa o módulo de expressões regulares (se ainda não estiver)
+
 # --- Rota para Streaming de Logs ---
 
 @app.route('/get_service_logs/<service_name>')
@@ -1282,33 +1286,64 @@ def get_service_logs(service_name):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Logs: """ + svc_name + """</title>
     <style>
-        body { background-color: #1e1e1e; color: #d4d4d4; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; margin: 0; padding: 10px; height: 100vh; overflow-y: auto; }
-        pre { white-space: pre-wrap; word-wrap: break-word; margin: 0; }
-        /* Cores básicas para logs systemd (podem precisar de ajuste) */
-        .log-info { color: #a6e22e; } /* Verde */
-        .log-warning { color: #f4bf75; } /* Laranja */
-        .log-error { color: #f92672; } /* Rosa/Vermelho */
-        .log-debug { color: #66d9ef; } /* Ciano */
-        .log-notice { color: #ae81ff; } /* Roxo */
-    </style>
-    <script>
-        // Auto-scroll para o final
-        function scrollToBottom() {
-            window.scrollTo(0, document.body.scrollHeight);
+        body {
+            background-color: #23272f; /* Tom de cinza azulado escuro */
+            color: #abb2bf; /* Cinza claro para texto geral */
+            font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace; /* Stack de fontes monoespaçadas comuns */
+            font-size: 14px; /* Ligeiramente maior */
+            line-height: 1.5; /* Espaçamento entre linhas melhor */
+            margin: 0;
+            padding: 15px; /* Mais padding */
+            min-height: 100vh; /* Garante altura mínima */
+            box-sizing: border-box; /* Inclui padding na altura/largura */
+            word-break: break-all; /* Quebra palavras longas */
         }
-        // Chama scrollToBottom sempre que novo conteúdo é adicionado (com um pequeno delay)
-        const observer = new MutationObserver(mutations => {
-             setTimeout(scrollToBottom, 50); // Pequeno delay para garantir renderização
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
-        // Scroll inicial após carregar
-        window.onload = scrollToBottom;
-    </script>
+        pre {
+            white-space: pre-wrap; /* Mantém quebras de linha e espaços */
+            word-wrap: break-word; /* Quebra palavras longas que excedem a linha */
+            margin: 0;
+            padding: 0;
+            /* background-color: #282c34; /* Fundo ligeiramente diferente para o pre se desejado */
+            /* border-radius: 5px; */
+            /* padding: 10px; */
+        }
+        /* Cores inspiradas no tema One Dark */
+        .log-info { color: #98c379; }    /* Verde para info */
+        .log-warning { color: #e5c07b; } /* Amarelo/Dourado para warning */
+        .log-error { color: #e06c75; }   /* Vermelho/Rosa para error/failed */
+        .log-debug { color: #61afef; }   /* Azul para debug (se usar) */
+        .log-notice { color: #c678dd; }  /* Roxo para notice */
+        /* Estilo para timestamps (se conseguir identificar via JS ou backend) */
+        .log-timestamp { color: #56b6c2; } /* Ciano para timestamps */
+         /* Estilo para mensagens padrão sem classe específica */
+         span:not([class^="log-"]) {
+             color: #abb2bf; /* Cor padrão do body */
+         }
+         /* Scrollbar mais sutil (Webkit - Chrome/Safari/Edge) */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #23272f; /* Fundo da trilha igual ao body */
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #4f5666; /* Cor do polegar da scrollbar */
+            border-radius: 4px;
+            border: 2px solid #23272f; /* Borda na cor do fundo para parecer mais fina */
+        }
+        ::-webkit-scrollbar-thumb:hover {
+             background-color: #6d758b; /* Cor no hover */
+        }
+         /* Scrollbar para Firefox */
+         * {
+           scrollbar-width: thin;
+           scrollbar-color: #4f5666 #23272f; /* thumb track */
+         }
+    </style>
 </head>
 <body>
-<pre>"""
-            yield f"--- Iniciando stream de logs para {svc_name} ---\n"
-            yield f"--- Exibindo as últimas 50 linhas e aguardando novas ---\n\n"
+<pre id="log-content">""" # Adiciona um ID ao <pre> para facilitar futuras manipulações
 
             # Lê stdout e stderr de forma não bloqueante (embora iterar stdout funcione bem para -f)
             while proc.poll() is None: # Enquanto o processo estiver rodando
@@ -1337,7 +1372,7 @@ def get_service_logs(service_name):
                 yield f"\n--- Erro do processo journalctl ---\n"
                 yield stderr_output.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
-            yield "\n--- Stream de logs encerrado (processo journalctl finalizado) ---\n</pre>"
+            yield "\n--- Stream de logs encerrado (processo journalctl finalizado) ---\n</pre>\n" # Adiciona quebra de linha antes do script
 
         except FileNotFoundError:
              yield f"</pre><pre>\n--- ERRO: Comando 'journalctl' não encontrado. Verifique se está instalado e no PATH. ---\n</pre>"
@@ -1358,11 +1393,60 @@ def get_service_logs(service_name):
                     proc.wait(timeout=2) # Espera um pouco
                 except subprocess.TimeoutExpired:
                     proc.kill() # Força se não terminar
-            yield "</body></html>" # Garante que o HTML feche
+            # Adiciona script para rolar para o fim ao carregar
+            yield """</pre>
+</body></html>""" # Garante que o HTML feche
 
     # Retorna a resposta de streaming
-    # text/event-stream era uma opção, mas text/html funciona bem para iframe
+    # text/html funciona bem para iframe
     return Response(stream_with_context(generate_log_stream(service_name)), mimetype='text/html')
+
+
+# --- Rota para Reiniciar Serviço ---
+
+@app.route('/restart_service/<service_name>', methods=['POST']) # Usar POST para ações
+@login_required
+def restart_service_route(service_name):
+    """Reinicia um serviço systemd associado a um site."""
+
+    # --- Validação e Segurança ---
+    # 1. Validar formato do nome do serviço (básico)
+    if not re.match(r'^[a-zA-Z0-9.-]+\.service$', service_name):
+        return jsonify({"success": False, "error": "Nome de serviço inválido."}), 400
+
+    # 2. Verificar se o serviço pertence a um site gerenciado
+    sites = load_sites()
+    site_found = next((s for s in sites if s.get('service_name') == service_name), None)
+
+    if not site_found:
+        return jsonify({"success": False, "error": f"Serviço '{service_name}' não encontrado ou não associado a um site gerenciado."}), 404
+
+    # 3. Verificar permissão do usuário (Dono do site ou Admin 'cico')
+    current_user = session.get('username')
+    is_admin = (current_user == 'cico')
+    site_owner = site_found.get('created_by_user')
+
+    if not is_admin and site_owner != current_user:
+        return jsonify({"success": False, "error": "Você não tem permissão para reiniciar este serviço."}), 403
+
+    # --- Executar Comando de Restart ---
+    if platform.system() != 'Linux':
+         print(f"Tentativa de reiniciar serviço '{service_name}' em sistema não-Linux ({platform.system()}).")
+         return jsonify({"success": False, "error": "Reiniciar serviços só é suportado em sistemas Linux com systemd."}), 400
+
+    command = ['sudo', 'systemctl', 'restart', service_name]
+    print(f"Usuário '{current_user}' solicitou restart do serviço: {service_name}")
+    result = run_command(command, check=False) # check=False para capturar erros
+
+    if result and result.returncode == 0:
+         print(f"Serviço '{service_name}' reiniciado com sucesso via systemctl.")
+         # Retorna sucesso para o Javascript
+         return jsonify({"success": True, "message": f"Serviço '{service_name}' reiniciado com sucesso."})
+    else:
+         error_details = result.stderr.strip() if result and result.stderr else "Erro desconhecido ao executar systemctl restart."
+         print(f"Falha ao reiniciar o serviço '{service_name}'. Detalhes: {error_details}")
+         # Retorna falha com detalhes para o Javascript
+         return jsonify({"success": False, "error": f"Falha ao reiniciar o serviço: {error_details}"}), 500
 
 
 # --- Ponto de Entrada da Aplicação ---
