@@ -5,6 +5,7 @@ import json
 import platform # Para verificar o sistema operacional
 import getpass # Alternativa para obter o usuário atual
 # import pwd # Removido - Não funciona no Windows
+import re
 import psutil # Para obter estatísticas do sistema
 import threading
 import pwd # Para obter nome de usuário (Linux) - Adicionado para permissões
@@ -12,7 +13,7 @@ import time
 import shutil # Para verificar permissões de escrita
 from datetime import datetime, timedelta, timezone
 from functools import wraps # Para criar decorators
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, Response, stream_with_context, Response, stream_with_context
 
 # --- Configurações ---
 
@@ -1220,6 +1221,148 @@ def delete_user(username):
     # Se system_user_deleted for False e for Linux, o erro já foi tratado e redirecionado acima.
 
     return redirect(url_for('users_management_page'))
+
+
+# --- Rota para Streaming de Logs ---
+
+@app.route('/get_service_logs/<service_name>')
+@login_required
+def get_service_logs(service_name):
+    """Retorna um stream HTML com os logs do serviço systemd especificado."""
+
+    # --- Validação e Segurança ---
+    # 1. Validar formato do nome do serviço (básico)
+    if not re.match(r'^[a-zA-Z0-9.-]+\.service$', service_name):
+        flash("Nome de serviço inválido.", 'error')
+        # Retorna uma resposta HTML simples com o erro, pois é para um iframe
+        return Response("<html><body><h1>Erro: Nome de serviço inválido.</h1></body></html>", status=400, mimetype='text/html')
+
+    # 2. Verificar se o serviço pertence a um site gerenciado
+    sites = load_sites()
+    site_found = next((s for s in sites if s.get('service_name') == service_name), None)
+
+    if not site_found:
+        flash(f"Serviço '{service_name}' não encontrado ou não associado a um site gerenciado.", 'error')
+        return Response(f"<html><body><h1>Erro: Serviço '{service_name}' não encontrado ou não autorizado.</h1></body></html>", status=404, mimetype='text/html')
+
+    # 3. Verificar permissão do usuário (Dono do site ou Admin 'cico')
+    current_user = session.get('username')
+    is_admin = (current_user == 'cico')
+    site_owner = site_found.get('created_by_user')
+
+    if not is_admin and site_owner != current_user:
+        flash("Você não tem permissão para visualizar os logs deste serviço.", 'error')
+        return Response("<html><body><h1>Erro: Acesso Negado.</h1></body></html>", status=403, mimetype='text/html')
+
+    # --- Função Geradora para o Stream ---
+    def generate_log_stream(svc_name):
+        # Comando: usa journalctl -f (follow) e -n 50 (últimas 50 linhas)
+        # --no-pager: evita paginação interativa
+        # IMPORTANTE: O usuário que roda o Flask precisa ter permissão para ler os logs!
+        # Geralmente, adicionando ao grupo 'systemd-journal': sudo usermod -a -G systemd-journal <flask_user>
+        # (e reiniciando o serviço Flask)
+        command = ['journalctl', '-u', svc_name, '-f', '--no-pager', '-n', '50']
+        proc = None # Inicializa proc fora do try para garantir que o finally possa acessá-lo
+
+        try:
+            print(f"Executando comando para logs: {' '.join(command)}")
+            proc = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, # Captura stderr também
+                text=True,
+                bufsize=1  # Line-buffered
+            )
+
+            # Envia o cabeçalho HTML e CSS para o estilo de terminal
+            yield """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logs: """ + svc_name + """</title>
+    <style>
+        body { background-color: #1e1e1e; color: #d4d4d4; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; margin: 0; padding: 10px; height: 100vh; overflow-y: auto; }
+        pre { white-space: pre-wrap; word-wrap: break-word; margin: 0; }
+        /* Cores básicas para logs systemd (podem precisar de ajuste) */
+        .log-info { color: #a6e22e; } /* Verde */
+        .log-warning { color: #f4bf75; } /* Laranja */
+        .log-error { color: #f92672; } /* Rosa/Vermelho */
+        .log-debug { color: #66d9ef; } /* Ciano */
+        .log-notice { color: #ae81ff; } /* Roxo */
+    </style>
+    <script>
+        // Auto-scroll para o final
+        function scrollToBottom() {
+            window.scrollTo(0, document.body.scrollHeight);
+        }
+        // Chama scrollToBottom sempre que novo conteúdo é adicionado (com um pequeno delay)
+        const observer = new MutationObserver(mutations => {
+             setTimeout(scrollToBottom, 50); // Pequeno delay para garantir renderização
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        // Scroll inicial após carregar
+        window.onload = scrollToBottom;
+    </script>
+</head>
+<body>
+<pre>"""
+            yield f"--- Iniciando stream de logs para {svc_name} ---\n"
+            yield f"--- Exibindo as últimas 50 linhas e aguardando novas ---\n\n"
+
+            # Lê stdout e stderr de forma não bloqueante (embora iterar stdout funcione bem para -f)
+            while proc.poll() is None: # Enquanto o processo estiver rodando
+                # Verifica se há algo para ler no stdout
+                for line in proc.stdout:
+                    # Escapa caracteres HTML básicos para segurança
+                    safe_line = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    # Adiciona classes CSS básicas baseadas em palavras chave (muito simples)
+                    if 'error' in line.lower() or 'failed' in line.lower():
+                        yield f'<span class="log-error">{safe_line}</span>'
+                    elif 'warning' in line.lower():
+                         yield f'<span class="log-warning">{safe_line}</span>'
+                    elif 'info' in line.lower():
+                         yield f'<span class="log-info">{safe_line}</span>'
+                    elif 'notice' in line.lower():
+                         yield f'<span class="log-notice">{safe_line}</span>'
+                    else:
+                        yield safe_line
+                # Pequena pausa para não consumir 100% CPU se não houver output
+                time.sleep(0.1)
+
+
+            # Verifica se houve erro na saída padrão de erro após o término
+            stderr_output = proc.stderr.read()
+            if stderr_output:
+                yield f"\n--- Erro do processo journalctl ---\n"
+                yield stderr_output.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+            yield "\n--- Stream de logs encerrado (processo journalctl finalizado) ---\n</pre>"
+
+        except FileNotFoundError:
+             yield f"</pre><pre>\n--- ERRO: Comando 'journalctl' não encontrado. Verifique se está instalado e no PATH. ---\n</pre>"
+        except PermissionError:
+             yield f"</pre><pre>\n--- ERRO: Permissão negada para executar 'journalctl'. Verifique as permissões do usuário '{getpass.getuser()}'. (Dica: Adicionar ao grupo 'systemd-journal') ---\n</pre>"
+        except Exception as e:
+            print(f"Erro no stream de logs para {svc_name}: {e}")
+            # Tenta enviar o erro para o stream
+            try:
+                yield f"</pre><pre>\n--- ERRO INESPERADO NO STREAM: {str(e)} ---\n</pre>"
+            except:
+                 pass # Ignora erros ao tentar enviar o erro
+        finally:
+            if proc and proc.poll() is None:
+                print(f"Encerrando processo journalctl para {svc_name}...")
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2) # Espera um pouco
+                except subprocess.TimeoutExpired:
+                    proc.kill() # Força se não terminar
+            yield "</body></html>" # Garante que o HTML feche
+
+    # Retorna a resposta de streaming
+    # text/event-stream era uma opção, mas text/html funciona bem para iframe
+    return Response(stream_with_context(generate_log_stream(service_name)), mimetype='text/html')
 
 
 # --- Ponto de Entrada da Aplicação ---

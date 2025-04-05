@@ -466,6 +466,24 @@
                                                          <i class="fas fa-trash-alt"></i>
                                                     </button>
                                                 </form>
+                                                 {# Botão Ver Logs (apenas para apps com service_name) #}
+                                                 {% if site.type == 'python_node' and site.service_name %}
+                                                 <button type="button"
+                                                         class="btn btn-outline-secondary"
+                                                         title="Ver Logs"
+                                                         onclick="showLogs('{{ site.service_name }}', '{{ site.domain }}')">
+                                                     <i class="fas fa-terminal"></i>
+                                                 </button>
+                                                 {% endif %}
+                                                 {# Botão Ver Logs (apenas para apps com service_name) #}
+                                                 {% if site.type == 'python_node' and site.service_name %}
+                                                 <button type="button"
+                                                         class="btn btn-outline-secondary"
+                                                         title="Ver Logs"
+                                                         onclick="showLogs('{{ site.service_name }}', '{{ site.domain }}')">
+                                                     <i class="fas fa-terminal"></i>
+                                                 </button>
+                                                 {% endif %}
                                                  <!-- Futuros botões aqui dentro do btn-group -->
                                                  <!-- <button class="btn btn-outline-primary" title="Editar"><i class="fas fa-edit"></i></button> -->
                                                  <!-- <button class="btn btn-outline-warning" title="Reiniciar"><i class="fas fa-sync-alt"></i></button> -->
@@ -689,8 +707,28 @@
         </div>
       </div>
       {% endif %}
-  
-  
+
+
+      <!-- Modal Visualizar Logs -->
+      <div class="modal fade" id="logModal" tabindex="-1" aria-labelledby="logModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable"> <!-- Modal Extra Large e scrollable -->
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="logModalLabel"><i class="fas fa-terminal me-2"></i>Logs: <span>Carregando...</span></h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0" style="height: 75vh;"> <!-- Remove padding e define altura fixa -->
+              <iframe id="logFrame" src="about:blank" style="width: 100%; height: 100%; border: none;"></iframe>
+            </div>
+            <div class="modal-footer bg-light border-top">
+                <small class="text-muted me-auto">Visualização em tempo real via journalctl. Feche o modal para parar o stream.</small>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
       <!-- Bootstrap Bundle with Popper -->
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
   
@@ -991,7 +1029,27 @@
                    // Poderia desabilitar/mostrar erro na seção de stats
               }
           }
-  
+
+          // --- Função para mostrar o modal de logs ---
+          function showLogs(serviceName, domainName) {
+              const logModalElement = document.getElementById('logModal');
+              const logFrame = document.getElementById('logFrame');
+              const logModalLabelSpan = document.querySelector('#logModalLabel span'); // Seleciona o span dentro do título
+
+              if (!logModalElement || !logFrame || !logModalLabelSpan) {
+                  console.error('Elementos do modal de logs não encontrados!');
+                  alert('Erro ao tentar abrir a visualização de logs.');
+                  return;
+              }
+
+              logModalLabelSpan.textContent = domainName + ' (' + serviceName + ')'; // Atualiza o título do modal
+              logFrame.src = '/get_service_logs/' + encodeURIComponent(serviceName); // Define o src do iframe
+
+              // Garante que a instância do modal seja criada corretamente
+              const logModalInstance = bootstrap.Modal.getOrCreateInstance(logModalElement);
+              logModalInstance.show();
+          }
+
           // --- Função para ativar a aba de usuários programaticamente ---
           function activateUsersTab(event) {
               event.preventDefault(); // Impede a navegação do link '#'
