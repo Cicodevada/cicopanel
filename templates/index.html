@@ -425,10 +425,12 @@
                                             {% if site.type == 'php' %}
                                                  <i class="fas fa-folder-open me-1 text-muted"></i> <strong>Caminho:</strong> <code>{{ site.path }}</code>
                                             {% else %}
-                                                <strong>Porta:</strong> {{ site.port }} <br>
+                                                <i class="fas fa-door-open me-1 text-muted"></i> <strong>Porta:</strong> {{ site.port }} <br>
                                                 <i class="fas fa-terminal me-1 text-muted"></i> <strong>Comando:</strong> <code data-bs-toggle="tooltip" title="{{ site.command }}">{{ site.command | truncate(40, True) }}</code> <br>
-                                                 <i class="fas fa-cogs me-1 text-muted"></i> <strong>Serviço:</strong> <code>{{ site.service_name | default('N/A') }}</code> <br>
-                                                {% if site.workdir %}<i class="fas fa-folder me-1 text-muted"></i> <strong>Workdir:</strong> <code>{{ site.workdir }}</code>{% endif %}
+                                                {% if site.workdir %}<i class="fas fa-folder-open me-1 text-muted"></i> <strong>Caminho:</strong> <code>{{ site.workdir }}</code><br>{% endif %}
+                                                <i class="fas fa-cogs me-1 text-muted"></i> <strong>Serviço:</strong> 
+                                                <a title="Ver Logs" href="#" onclick="showLogs('site-teste-cico-diy.service', 'teste.cico.diy')">Logs</a> | 
+                                                <a title="Reiniciar Serviço" href="#" onclick="restartService('site-teste-cico-diy.service')">Reiniciar</a>
                                             {% endif %}
                                         </td>
                                         <td class="text-center">
@@ -466,27 +468,6 @@
                                                          <i class="fas fa-trash-alt"></i>
                                                     </button>
                                                 </form>
-                                                 {# Botão Ver Logs (apenas para apps com service_name) #}
-                                                 {% if site.type == 'python_node' and site.service_name %}
-                                                 <button type="button"
-                                                         class="btn btn-outline-secondary"
-                                                         title="Ver Logs"
-                                                         onclick="showLogs('{{ site.service_name }}', '{{ site.domain }}')">
-                                                     <i class="fas fa-terminal"></i>
-                                                 </button>
-                                                 {% endif %}
-                                                 {# Botão Ver Logs (apenas para apps com service_name) #}
-                                                 {% if site.type == 'python_node' and site.service_name %}
-                                                 <button type="button"
-                                                         class="btn btn-outline-secondary"
-                                                         title="Ver Logs"
-                                                         onclick="showLogs('{{ site.service_name }}', '{{ site.domain }}')">
-                                                     <i class="fas fa-terminal"></i>
-                                                 </button>
-                                                 {% endif %}
-                                                 <!-- Futuros botões aqui dentro do btn-group -->
-                                                 <!-- <button class="btn btn-outline-primary" title="Editar"><i class="fas fa-edit"></i></button> -->
-                                                 <!-- <button class="btn btn-outline-warning" title="Reiniciar"><i class="fas fa-sync-alt"></i></button> -->
                                               </div>
                                         </td>
                                     </tr>
