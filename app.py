@@ -793,19 +793,41 @@ def add_site():
 
         new_site_data['port'] = port
         new_site_data['command'] = command
-        new_site_data['workdir'] = workdir
+        new_site_data['workdir'] = workdir # Workdir é validado antes
+
+        # 1. Criar diretório de trabalho (se não existir)
+        # O campo workdir é 'required' no formulário HTML para python_node
+        if workdir:
+             try:
+                 # Cria o diretório (e diretórios pais, se necessário)
+                 # Não falha se já existir
+                 os.makedirs(workdir, exist_ok=True)
+                 # As permissões serão ajustadas posteriormente pela função set_directory_permissions
+                 flash(f"Diretório de trabalho '{workdir}' criado (ou já existia). As permissões serão definidas a seguir.", 'info')
+             except Exception as e:
+                 flash(f"Erro crítico ao criar diretório de trabalho '{workdir}': {e}. Verifique as permissões do diretório pai.", 'error')
+                 return redirect(url_for('index'))
+        else:
+             # Isso não deve acontecer devido ao 'required' no HTML, mas é uma salvaguarda.
+             flash("Erro interno: O diretório de trabalho não foi fornecido para o site App.", 'error')
+             return redirect(url_for('index'))
 
 
-        # 1. Gerar config Nginx (Reverse Proxy)
+        # 2. Gerar config Nginx (Reverse Proxy)
         nginx_config_path = generate_nginx_config('proxy_site.conf', domain, port=port)
         if not nginx_config_path:
-            return redirect(url_for('index'))
+             # Se o workdir foi criado, talvez removê-lo? Por ora, não.
+             return redirect(url_for('index'))
 
-        # 2. Criar e iniciar serviço Systemd
+        # 3. Criar e iniciar serviço Systemd
+        # Passa o workdir que agora sabemos que existe (ou a criação falhou e retornou antes)
         service_name = create_systemd_service(domain, command, port, workdir)
         if not service_name:
-            # Tentar limpar a config do Nginx se falhou em criar o serviço? (Opcional)
-            # run_command(['sudo', 'rm', nginx_config_path], check=False)
+            # Tentar limpar a config do Nginx e o diretório criado? (Opcional)
+            if nginx_config_path and os.path.exists(nginx_config_path):
+                 run_command(['sudo', 'rm', nginx_config_path], check=False)
+            # Não removemos o diretório workdir automaticamente em caso de falha no serviço
+            # para permitir depuração ou tentativa manual.
             return redirect(url_for('index'))
         new_site_data['service_name'] = service_name
 
