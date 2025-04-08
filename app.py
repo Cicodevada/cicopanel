@@ -1424,6 +1424,575 @@ def get_service_logs(service_name):
     return Response(stream_with_context(generate_log_stream(service_name)), mimetype='text/html')
 
 
+# --- Funções Auxiliares do File Manager ---
+
+def get_site_base_path(domain):
+    """Obtém o caminho base absoluto para o gerenciador de arquivos de um site."""
+    sites = load_sites()
+    site = next((s for s in sites if s['domain'] == domain), None)
+    if not site:
+        return None
+
+    # Prioriza 'workdir' para apps, senão usa 'path' para PHP
+    path_key = 'workdir' if site.get('type') == 'python_node' and site.get('workdir') else 'path'
+    base_dir = site.get(path_key)
+
+    if not base_dir or not os.path.isabs(base_dir):
+         # Se não encontrar ou não for absoluto, retorna None para indicar erro
+         print(f"Erro: Caminho base inválido ou não encontrado para o site {domain} na chave {path_key}.")
+         return None
+
+    # Garante que o diretório base exista
+    if not os.path.isdir(base_dir):
+         try:
+             os.makedirs(base_dir, exist_ok=True)
+             # TODO: Talvez definir permissões aqui se acabou de criar?
+             print(f"Aviso: Diretório base '{base_dir}' para {domain} não existia e foi criado.")
+         except OSError as e:
+             print(f"Erro crítico: Falha ao criar o diretório base '{base_dir}' para {domain}: {e}")
+             return None # Não pode continuar sem diretório base
+
+    return base_dir
+
+def check_file_manager_permission(domain):
+    """Verifica se o usuário logado tem permissão para acessar o file manager deste site."""
+    sites = load_sites()
+    site = next((s for s in sites if s['domain'] == domain), None)
+    if not site:
+        return False # Site não existe
+
+    current_user = session.get('username')
+    is_admin = (current_user == 'cico')
+    site_owner = site.get('created_by_user')
+
+    # Permite apenas admin ou o dono do site
+    if is_admin or site_owner == current_user:
+        return True
+    else:
+        flash(f"Você não tem permissão para acessar os arquivos do site '{domain}'.", 'error')
+        return False
+
+def sanitize_path(base_path, relative_path):
+    """
+    Constrói um caminho absoluto seguro a partir de um caminho base e um relativo,
+    prevenindo travessia de diretório e garantindo que esteja dentro do base_path.
+
+    Retorna o caminho absoluto sanitizado ou None se for inválido/inseguro.
+    """
+    if not base_path:
+        print("Erro: Caminho base não fornecido para sanitização.")
+        return None
+
+    # Decodifica o caminho relativo (vem da URL)
+    try:
+        decoded_relative_path = requests.utils.unquote(relative_path or "")
+    except Exception as e:
+        print(f"Erro ao decodificar caminho relativo '{relative_path}': {e}")
+        return None
+
+    # Normaliza e resolve o caminho
+    # os.path.join ignora o base_path se relative_path começar com '/'
+    # Por isso, limpamos a barra inicial do relative_path se existir
+    clean_relative_path = decoded_relative_path.lstrip('/')
+    unsafe_full_path = os.path.join(base_path, clean_relative_path)
+
+    # Resolve o caminho absoluto real (trata '.', '..', etc.)
+    # ATENÇÃO: abspath não impede sair do diretório base por si só
+    full_path = os.path.abspath(unsafe_full_path)
+
+    # **Verificação CRUCIAL: Garante que o caminho final esteja DENTRO do base_path**
+    # Compara os caminhos absolutos normalizados
+    if os.path.commonpath([base_path, full_path]) != os.path.abspath(base_path):
+        print(f"Erro de Segurança: Tentativa de acesso fora do diretório base detectada. Base: '{base_path}', Solicitado: '{relative_path}', Resolvido: '{full_path}'")
+        return None # Caminho inseguro!
+
+    return full_path
+
+# --- Rota Principal do File Manager ---
+
+@app.route('/file_manager/<site_domain>')
+@login_required
+def file_manager_page(site_domain):
+    """Exibe a página do gerenciador de arquivos para um site específico."""
+    if not check_file_manager_permission(site_domain):
+        # Redireciona para o index se não tiver permissão (flash message já foi setada)
+        return redirect(url_for('index'))
+
+    base_path = get_site_base_path(site_domain)
+    if not base_path:
+        flash(f"Erro: Não foi possível determinar o diretório base para o site '{site_domain}'. Verifique a configuração.", "error")
+        return redirect(url_for('index'))
+
+    # O base_path não deve ser exposto diretamente ao cliente se contiver info sensível,
+    # mas neste caso ele é o ponto de partida para as operações da API.
+    return render_template('file_manager.html', site_domain=site_domain, base_path=base_path)
+
+
+# --- API Endpoints do File Manager ---
+
+@app.route('/api/file_manager/list', methods=['GET'])
+@login_required
+def api_fm_list():
+    domain = request.args.get('domain')
+    relative_path = request.args.get('path', '')
+    folders_only = request.args.get('folders_only', 'false').lower() == 'true'
+
+    if not domain:
+        return jsonify({"success": False, "error": "Parâmetro 'domain' ausente."}), 400
+
+    if not check_file_manager_permission(domain):
+        return jsonify({"success": False, "error": "Permissão negada."}), 403
+
+    base_path = get_site_base_path(domain)
+    if not base_path:
+        return jsonify({"success": False, "error": f"Caminho base não encontrado ou inválido para o site '{domain}'."}), 404
+
+    target_path = sanitize_path(base_path, relative_path)
+    if not target_path:
+        return jsonify({"success": False, "error": "Caminho inválido ou acesso negado."}), 400
+    if not os.path.isdir(target_path):
+         return jsonify({"success": False, "error": f"Diretório não encontrado: {relative_path}"}), 404
+
+
+    try:
+        # TODO: Adicionar tratamento de erro de permissão aqui
+        items = []
+        for item_name in os.listdir(target_path):
+            item_path = os.path.join(target_path, item_name)
+            try: # Tenta obter informações, pula se não tiver permissão
+                stat_info = os.stat(item_path)
+                is_dir = os.path.isdir(item_path)
+
+                if folders_only and not is_dir:
+                    continue # Pula arquivos se pedimos apenas pastas
+
+                items.append({
+                    "name": item_name,
+                    "is_dir": is_dir,
+                    "size": stat_info.st_size if not is_dir else None,
+                    "modified": stat_info.st_mtime
+                })
+            except OSError as e:
+                print(f"Erro ao acessar item '{item_path}': {e}. Pulando.")
+                # Opcional: Adicionar um item indicando erro de permissão
+                # items.append({"name": item_name, "is_dir": False, "error": "Permission Denied"})
+                continue # Pula este item
+
+        return jsonify({"success": True, "files": items, "path": relative_path})
+
+    except FileNotFoundError:
+         return jsonify({"success": False, "error": f"Diretório não encontrado: {relative_path}"}), 404
+    except PermissionError:
+         print(f"Erro de permissão ao listar diretório: {target_path}")
+         # Informa o usuário sobre o erro de permissão no diretório PAI
+         return jsonify({"success": False, "error": f"Permissão negada para acessar o diretório: {relative_path}. Verifique as permissões no servidor.", "files": [], "path": relative_path}), 403 # Retorna 403 Forbidden
+    except Exception as e:
+        print(f"Erro inesperado ao listar arquivos em '{target_path}': {e}")
+        return jsonify({"success": False, "error": f"Erro inesperado ao listar arquivos: {e}"}), 500
+
+
+@app.route('/api/file_manager/upload', methods=['POST'])
+@login_required
+def api_fm_upload():
+    domain = request.form.get('domain')
+    relative_path = request.form.get('path', '')
+    files = request.files.getlist('files[]') # Espera uma lista de arquivos
+
+    if not domain:
+        return jsonify({"success": False, "error": "Parâmetro 'domain' ausente."}), 400
+    if not files:
+        return jsonify({"success": False, "error": "Nenhum arquivo enviado."}), 400
+
+    if not check_file_manager_permission(domain):
+        return jsonify({"success": False, "error": "Permissão negada."}), 403
+
+    base_path = get_site_base_path(domain)
+    if not base_path:
+        return jsonify({"success": False, "error": f"Caminho base não encontrado ou inválido para o site '{domain}'."}), 404
+
+    target_path = sanitize_path(base_path, relative_path)
+    if not target_path or not os.path.isdir(target_path): # Garante que o destino é um diretório válido
+        return jsonify({"success": False, "error": "Caminho de destino inválido ou não é um diretório."}), 400
+
+    # Verifica permissão de escrita no diretório ANTES de tentar salvar
+    if not os.access(target_path, os.W_OK):
+         print(f"Erro de permissão: Sem permissão de escrita no diretório '{target_path}' para o usuário '{getpass.getuser()}'.")
+         return jsonify({"success": False, "error": f"Sem permissão de escrita no diretório de destino: '{relative_path}'. Verifique as permissões no servidor."}), 403
+
+    uploaded_files = []
+    errors = []
+
+    for file in files:
+        if file.filename == '':
+            errors.append("Recebido um arquivo sem nome.")
+            continue # Pula arquivo sem nome
+
+        # Segurança: Limpa o nome do arquivo para evitar nomes maliciosos ou path traversal
+        # werkzeug.utils.secure_filename é recomendado, mas vamos fazer uma limpeza básica aqui
+        filename = os.path.basename(file.filename) # Remove barras
+        # Poderia adicionar mais sanitização aqui (ex: remover caracteres especiais)
+
+        destination_file_path = os.path.join(target_path, filename)
+
+        # Evita sobrescrever? Ou permite? Por enquanto, permite.
+        # if os.path.exists(destination_file_path):
+        #    errors.append(f"Arquivo '{filename}' já existe no destino.")
+        #    continue
+
+        try:
+            file.save(destination_file_path)
+            uploaded_files.append(filename)
+            print(f"Arquivo '{filename}' salvo com sucesso em '{destination_file_path}'.")
+            # Opcional: Ajustar permissões do arquivo recém-criado se necessário
+            # os.chmod(destination_file_path, 0o644) # Exemplo: -rw-r--r--
+            # current_user = session.get('username')
+            # if current_user != 'cico': # Tenta dar chown se não for o admin (precisa de sudoers)
+            #     try:
+            #         uid = pwd.getpwnam(current_user).pw_uid
+            #         gid = pwd.getpwnam(current_user).pw_gid
+            #         os.chown(destination_file_path, uid, gid)
+            #         print(f"Dono do arquivo '{filename}' alterado para {current_user}.")
+            #     except Exception as chown_err:
+            #         print(f"Aviso: Falha ao alterar dono do arquivo '{filename}' para {current_user}: {chown_err}")
+
+        except Exception as e:
+             error_msg = f"Erro ao salvar o arquivo '{filename}': {e}"
+             print(error_msg)
+             errors.append(error_msg)
+
+    if not errors:
+         return jsonify({"success": True, "message": f"{len(uploaded_files)} arquivo(s) enviados com sucesso."})
+    else:
+         return jsonify({
+            "success": len(uploaded_files) > 0, # Sucesso parcial se algum foi enviado
+            "message": f"{len(uploaded_files)} arquivo(s) enviados. {len(errors)} erro(s) ocorreram.",
+            "uploaded": uploaded_files,
+            "errors": errors
+         }), 207 # Multi-Status (indica sucesso parcial)
+
+
+@app.route('/api/file_manager/create_folder', methods=['POST'])
+@login_required
+def api_fm_create_folder():
+    data = request.json
+    domain = data.get('domain')
+    relative_path = data.get('path', '')
+    folder_name = data.get('name')
+
+    if not domain or not folder_name:
+        return jsonify({"success": False, "error": "Parâmetros 'domain' e 'name' são obrigatórios."}), 400
+
+    if not check_file_manager_permission(domain):
+        return jsonify({"success": False, "error": "Permissão negada."}), 403
+
+    base_path = get_site_base_path(domain)
+    if not base_path:
+        return jsonify({"success": False, "error": f"Caminho base não encontrado ou inválido para o site '{domain}'."}), 404
+
+    # Sanitiza o nome da pasta (básico)
+    safe_folder_name = os.path.basename(folder_name)
+    if not safe_folder_name or safe_folder_name == '.' or safe_folder_name == '..':
+        return jsonify({"success": False, "error": "Nome de pasta inválido."}), 400
+
+    parent_dir_path = sanitize_path(base_path, relative_path)
+    if not parent_dir_path or not os.path.isdir(parent_dir_path):
+        return jsonify({"success": False, "error": "Caminho pai inválido ou não é um diretório."}), 400
+
+    # Verifica permissão de escrita no diretório PAI
+    if not os.access(parent_dir_path, os.W_OK):
+         print(f"Erro de permissão: Sem permissão de escrita no diretório pai '{parent_dir_path}' para o usuário '{getpass.getuser()}'.")
+         return jsonify({"success": False, "error": f"Sem permissão para criar pasta em: '{relative_path}'. Verifique as permissões no servidor."}), 403
+
+    new_folder_path = os.path.join(parent_dir_path, safe_folder_name)
+
+    if os.path.exists(new_folder_path):
+        return jsonify({"success": False, "error": f"Pasta '{safe_folder_name}' já existe neste local."}), 409 # Conflict
+
+    try:
+        os.makedirs(new_folder_path) # Cria a pasta
+        print(f"Pasta '{safe_folder_name}' criada com sucesso em '{parent_dir_path}'.")
+        # Opcional: Ajustar permissões da pasta recém-criada
+        # os.chmod(new_folder_path, 0o755) # Exemplo: drwxr-xr-x
+        # current_user = session.get('username')
+        # if current_user != 'cico':
+        #     try:
+        #         uid = pwd.getpwnam(current_user).pw_uid
+        #         gid = pwd.getpwnam(current_user).pw_gid
+        #         os.chown(new_folder_path, uid, gid)
+        #         print(f"Dono da pasta '{safe_folder_name}' alterado para {current_user}.")
+        #     except Exception as chown_err:
+        #         print(f"Aviso: Falha ao alterar dono da pasta '{safe_folder_name}' para {current_user}: {chown_err}")
+
+        return jsonify({"success": True, "message": f"Pasta '{safe_folder_name}' criada com sucesso."})
+    except OSError as e:
+         error_msg = f"Erro ao criar pasta '{safe_folder_name}': {e}"
+         print(error_msg)
+         return jsonify({"success": False, "error": error_msg}), 500
+    except Exception as e:
+        print(f"Erro inesperado ao criar pasta: {e}")
+        return jsonify({"success": False, "error": f"Erro inesperado: {e}"}), 500
+
+
+@app.route('/api/file_manager/rename', methods=['POST'])
+@login_required
+def api_fm_rename():
+    data = request.json
+    domain = data.get('domain')
+    relative_path = data.get('path', '')
+    old_name = data.get('old_name')
+    new_name = data.get('new_name')
+
+    if not domain or not old_name or not new_name:
+        return jsonify({"success": False, "error": "Parâmetros 'domain', 'old_name' e 'new_name' são obrigatórios."}), 400
+    if old_name == new_name:
+        return jsonify({"success": False, "error": "O novo nome deve ser diferente do antigo."}), 400
+
+    if not check_file_manager_permission(domain):
+        return jsonify({"success": False, "error": "Permissão negada."}), 403
+
+    base_path = get_site_base_path(domain)
+    if not base_path:
+        return jsonify({"success": False, "error": f"Caminho base não encontrado ou inválido para o site '{domain}'."}), 404
+
+    # Sanitiza nomes (básico)
+    safe_old_name = os.path.basename(old_name)
+    safe_new_name = os.path.basename(new_name)
+    if not safe_old_name or not safe_new_name or safe_new_name == '.' or safe_new_name == '..':
+        return jsonify({"success": False, "error": "Nomes de arquivo/pasta inválidos."}), 400
+
+    parent_dir_path = sanitize_path(base_path, relative_path)
+    if not parent_dir_path or not os.path.isdir(parent_dir_path):
+        return jsonify({"success": False, "error": "Caminho pai inválido ou não é um diretório."}), 400
+
+    old_item_path = os.path.join(parent_dir_path, safe_old_name)
+    new_item_path = os.path.join(parent_dir_path, safe_new_name)
+
+    # Verifica se o item antigo existe
+    if not os.path.exists(old_item_path):
+        return jsonify({"success": False, "error": f"Item original '{safe_old_name}' não encontrado."}), 404
+
+    # Verifica se já existe um item com o novo nome
+    if os.path.exists(new_item_path):
+        return jsonify({"success": False, "error": f"Já existe um item chamado '{safe_new_name}' neste local."}), 409 # Conflict
+
+    # Verifica permissão de escrita no diretório PAI (necessária para renomear)
+    if not os.access(parent_dir_path, os.W_OK):
+         print(f"Erro de permissão: Sem permissão de escrita no diretório pai '{parent_dir_path}' para renomear.")
+         return jsonify({"success": False, "error": f"Sem permissão para renomear itens em: '{relative_path}'. Verifique as permissões no servidor."}), 403
+
+
+    try:
+        os.rename(old_item_path, new_item_path)
+        print(f"Item '{safe_old_name}' renomeado para '{safe_new_name}' em '{parent_dir_path}'.")
+        return jsonify({"success": True, "message": "Item renomeado com sucesso."})
+    except OSError as e:
+         error_msg = f"Erro ao renomear '{safe_old_name}' para '{safe_new_name}': {e}"
+         print(error_msg)
+         return jsonify({"success": False, "error": error_msg}), 500
+    except Exception as e:
+        print(f"Erro inesperado ao renomear: {e}")
+        return jsonify({"success": False, "error": f"Erro inesperado: {e}"}), 500
+
+@app.route('/api/file_manager/delete', methods=['POST'])
+@login_required
+def api_fm_delete():
+    data = request.json
+    domain = data.get('domain')
+    relative_path = data.get('path', '')
+    items_to_delete = data.get('items') # Espera uma lista de nomes
+
+    if not domain or not items_to_delete or not isinstance(items_to_delete, list):
+        return jsonify({"success": False, "error": "Parâmetros 'domain' e 'items' (lista) são obrigatórios."}), 400
+
+    if not check_file_manager_permission(domain):
+        return jsonify({"success": False, "error": "Permissão negada."}), 403
+
+    base_path = get_site_base_path(domain)
+    if not base_path:
+        return jsonify({"success": False, "error": f"Caminho base não encontrado ou inválido para o site '{domain}'."}), 404
+
+    parent_dir_path = sanitize_path(base_path, relative_path)
+    if not parent_dir_path or not os.path.isdir(parent_dir_path):
+        return jsonify({"success": False, "error": "Caminho pai inválido ou não é um diretório."}), 400
+
+    # Verifica permissão de escrita no diretório PAI (necessária para excluir)
+    if not os.access(parent_dir_path, os.W_OK):
+         print(f"Erro de permissão: Sem permissão de escrita no diretório pai '{parent_dir_path}' para excluir itens.")
+         return jsonify({"success": False, "error": f"Sem permissão para excluir itens em: '{relative_path}'. Verifique as permissões no servidor."}), 403
+
+    deleted_items = []
+    errors = []
+
+    for item_name in items_to_delete:
+        safe_item_name = os.path.basename(item_name)
+        if not safe_item_name or safe_item_name == '.' or safe_item_name == '..':
+            errors.append(f"Nome inválido encontrado: '{item_name}'")
+            continue
+
+        item_path = os.path.join(parent_dir_path, safe_item_name)
+
+        if not os.path.exists(item_path):
+            # Pode já ter sido deletado ou nome inválido
+            print(f"Item a ser deletado não encontrado: '{item_path}'. Pulando.")
+            # errors.append(f"Item '{safe_item_name}' não encontrado.") # Opcional: reportar como erro
+            continue
+
+        try:
+            if os.path.isdir(item_path):
+                shutil.rmtree(item_path) # Remove diretório e conteúdo recursivamente
+                print(f"Diretório '{safe_item_name}' removido com sucesso de '{parent_dir_path}'.")
+            else:
+                os.remove(item_path) # Remove arquivo
+                print(f"Arquivo '{safe_item_name}' removido com sucesso de '{parent_dir_path}'.")
+            deleted_items.append(safe_item_name)
+        except OSError as e:
+             error_msg = f"Erro ao excluir '{safe_item_name}': {e}"
+             print(error_msg)
+             errors.append(error_msg)
+        except Exception as e:
+            error_msg = f"Erro inesperado ao excluir '{safe_item_name}': {e}"
+            print(error_msg)
+            errors.append(error_msg)
+
+
+    if not errors:
+         return jsonify({"success": True, "message": f"{len(deleted_items)} item(ns) excluído(s) com sucesso."})
+    else:
+         return jsonify({
+            "success": len(deleted_items) > 0, # Sucesso parcial se algum foi deletado
+            "message": f"{len(deleted_items)} item(ns) excluído(s). {len(errors)} erro(s) ocorreram.",
+            "deleted": deleted_items,
+            "errors": errors
+         }), 207 # Multi-Status
+
+# --- Funções Auxiliares para Copiar/Mover ---
+
+def copy_item(src, dst):
+    """Copia um arquivo ou diretório."""
+    try:
+        if os.path.isdir(src):
+            shutil.copytree(src, dst, dirs_exist_ok=True) # Permite que o diretório de destino já exista
+        else:
+            shutil.copy2(src, dst) # copy2 preserva metadados
+        return None # Sem erro
+    except Exception as e:
+        return f"Erro ao copiar '{os.path.basename(src)}': {e}"
+
+def move_item(src, dst):
+    """Move um arquivo ou diretório."""
+    try:
+        shutil.move(src, dst)
+        return None # Sem erro
+    except Exception as e:
+        return f"Erro ao mover '{os.path.basename(src)}': {e}"
+
+# --- Rotas de Copiar/Mover ---
+
+@app.route('/api/file_manager/copy', methods=['POST'])
+@login_required
+def api_fm_copy():
+    return handle_copy_move('copy')
+
+@app.route('/api/file_manager/move', methods=['POST'])
+@login_required
+def api_fm_move():
+    return handle_copy_move('move')
+
+def handle_copy_move(action_type):
+    """Função unificada para lidar com cópia e movimentação."""
+    data = request.json
+    domain = data.get('domain')
+    source_relative_path = data.get('source_path', '')
+    items_to_process = data.get('items') # Lista de nomes
+    dest_relative_path = data.get('dest_path', '')
+
+    if not domain or not items_to_process or not isinstance(items_to_process, list):
+        return jsonify({"success": False, "error": "Parâmetros 'domain' e 'items' (lista) são obrigatórios."}), 400
+    # dest_path pode ser vazio (raiz)
+
+    if not check_file_manager_permission(domain):
+        return jsonify({"success": False, "error": "Permissão negada."}), 403
+
+    base_path = get_site_base_path(domain)
+    if not base_path:
+        return jsonify({"success": False, "error": f"Caminho base não encontrado ou inválido para o site '{domain}'."}), 404
+
+    # Valida caminho de origem
+    source_parent_dir_path = sanitize_path(base_path, source_relative_path)
+    if not source_parent_dir_path or not os.path.isdir(source_parent_dir_path):
+        return jsonify({"success": False, "error": "Caminho de origem inválido."}), 400
+
+    # Valida caminho de destino
+    dest_dir_path = sanitize_path(base_path, dest_relative_path)
+    if not dest_dir_path or not os.path.isdir(dest_dir_path):
+        return jsonify({"success": False, "error": "Caminho de destino inválido ou não é um diretório."}), 400
+
+    # Verifica permissões
+    # Precisa de leitura na origem e escrita no destino
+    # Para MOVER, precisa de escrita na ORIGEM também (para remover o original)
+    if not os.access(source_parent_dir_path, os.R_OK):
+        return jsonify({"success": False, "error": f"Sem permissão de leitura na origem: '{source_relative_path}'."}), 403
+    if not os.access(dest_dir_path, os.W_OK):
+         return jsonify({"success": False, "error": f"Sem permissão de escrita no destino: '{dest_relative_path}'."}), 403
+    if action_type == 'move' and not os.access(source_parent_dir_path, os.W_OK):
+         return jsonify({"success": False, "error": f"Sem permissão de escrita na origem para mover: '{source_relative_path}'."}), 403
+
+
+    processed_items = []
+    errors = []
+
+    operation_func = copy_item if action_type == 'copy' else move_item
+    action_verb_gerund = "copiando" if action_type == 'copy' else "movendo"
+    action_verb_past = "copiado(s)" if action_type == 'copy' else "movido(s)"
+
+    for item_name in items_to_process:
+        safe_item_name = os.path.basename(item_name)
+        if not safe_item_name or safe_item_name == '.' or safe_item_name == '..':
+            errors.append(f"Nome inválido encontrado: '{item_name}'")
+            continue
+
+        source_item_path = os.path.join(source_parent_dir_path, safe_item_name)
+        dest_item_path = os.path.join(dest_dir_path, safe_item_name) # Assume o mesmo nome no destino
+
+        # Verifica se a origem existe
+        if not os.path.exists(source_item_path):
+            errors.append(f"Item de origem '{safe_item_name}' não encontrado.")
+            continue
+
+        # Verifica se o destino já existe (shutil.move falha, copytree/copy2 sobrescrevem/falham dependendo)
+        if os.path.exists(dest_item_path):
+            # Para simplificar, vamos impedir a sobrescrita por enquanto
+            errors.append(f"Item '{safe_item_name}' já existe no destino.")
+            continue
+
+        # Prevenção simples contra mover/copiar para dentro de si mesmo
+        if os.path.isdir(source_item_path) and dest_dir_path.startswith(source_item_path + os.path.sep):
+             errors.append(f"Não é possível {action_verb_gerund} a pasta '{safe_item_name}' para dentro dela mesma.")
+             continue
+
+
+        print(f"Tentando {action_verb_gerund} '{source_item_path}' para '{dest_dir_path}'")
+        error = operation_func(source_item_path, dest_item_path) # Passa o caminho completo do destino
+
+        if error:
+            print(f"Erro ao {action_verb_gerund} '{safe_item_name}': {error}")
+            errors.append(error)
+            # Tentar reverter? Complexo. Por enquanto, apenas reporta.
+        else:
+            print(f"Item '{safe_item_name}' {action_verb_past} com sucesso.")
+            processed_items.append(safe_item_name)
+
+    if not errors:
+         return jsonify({"success": True, "message": f"{len(processed_items)} item(ns) {action_verb_past} com sucesso."})
+    else:
+         return jsonify({
+            "success": len(processed_items) > 0, # Sucesso parcial
+            "message": f"{len(processed_items)} item(ns) {action_verb_past}. {len(errors)} erro(s) ocorreram.",
+            "processed": processed_items,
+            "errors": errors
+         }), 207 # Multi-Status
+
+
 # --- Rota para Reiniciar Serviço ---
 
 @app.route('/restart_service/<service_name>', methods=['POST']) # Usar POST para ações

@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Manager - {{ site_domain }}</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+             --fm-primary-color: #0d6efd;
+             --fm-secondary-color: #6c757d;
+             --fm-light-gray: #f8f9fa;
+             --fm-border-color: #dee2e6;
+             --fm-hover-bg: #e9ecef;
+             --fm-selected-bg: #cfe2ff;
+             --fm-folder-color: #ffc107;
+             --fm-drop-zone-bg: rgba(13, 110, 253, 0.05);
+             --fm-drop-zone-border: #0d6efd;
+             --fm-drop-zone-overlay-bg: rgba(13, 110, 253, 0.1);
+             --fm-drop-zone-overlay-text: #0a58ca;
+        }
+
+        body {
+            background-color: var(--fm-light-gray);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+        main {
+             flex-grow: 1; /* Faz o main ocupar o espaço restante */
+             padding-top: 1.5rem;
+             padding-bottom: 2rem;
+        }
+        .breadcrumb {
+            background-color: #fff; /* Fundo branco para destacar */
+            padding: 0.8rem 1.2rem; /* Mais padding */
+            border-radius: 0.375rem;
+            margin-bottom: 1.2rem; /* Mais espaço abaixo */
+            font-size: 0.9rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,.05); /* Sombra sutil */
+            border: 1px solid var(--fm-border-color); /* Borda sutil */
+        }
+        .breadcrumb-item a {
+            text-decoration: none;
+            color: var(--fm-primary-color);
+            font-weight: 500;
+        }
+        .breadcrumb-item a:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-item.active {
+            color: var(--fm-secondary-color);
+            font-weight: 500;
+        }
+        .fm-toolbar {
+            padding: 0.8rem 1.2rem; /* Padding igual ao breadcrumb */
+            background-color: #fff;
+            border-radius: 0.375rem;
+            margin-bottom: 1.2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,.05);
+            border: 1px solid var(--fm-border-color);
+        }
+        .fm-toolbar .btn {
+             font-weight: 500;
+        }
+        .table-responsive {
+             margin-bottom: 0;
+        }
+        .table {
+             margin-bottom: 0;
+             border: 1px solid var(--fm-border-color);
+             border-radius: 0.375rem; /* Arredondar tabela */
+             overflow: hidden; /* Garante que o radius funcione com o thead */
+        }
+        .table thead {
+             background-color: var(--fm-light-gray); /* Cabeçalho cinza claro */
+        }
+        .table th {
+             font-weight: 600; /* Cabeçalho em negrito */
+             color: var(--fm-secondary-color);
+             border-bottom-width: 1px; /* Linha um pouco mais fina */
+             padding: 0.9rem 1rem; /* Mais padding vertical */
+             white-space: nowrap;
+        }
+        .table td {
+             vertical-align: middle;
+             padding: 0.8rem 1rem; /* Mais padding nas células */
+        }
+        .table-hover tbody tr:hover {
+            background-color: var(--fm-hover-bg);
+            cursor: pointer;
+        }
+        .fm-item-icon {
+            width: 20px; /* Largura fixa */
+            text-align: center;
+            margin-right: 10px; /* Mais espaço */
+            font-size: 1.1em; /* Ícones ligeiramente maiores */
+            color: var(--fm-secondary-color); /* Cor padrão */
+        }
+        .fm-item-icon.fa-folder { color: var(--fm-folder-color); }
+        .fm-item-icon.fa-file-lines { color: #6c757d; }
+        .fm-item-icon.fa-file-image { color: #17a2b8; }
+        .fm-item-icon.fa-file-pdf { color: #dc3545; }
+        .fm-item-icon.fa-file-archive { color: #fd7e14; }
+        .fm-item-icon.fa-file-code { color: #0d6efd; }
+        .fm-item-icon.fa-file-audio { color: #6f42c1; }
+        .fm-item-icon.fa-file-video { color: #e83e8c; }
+        .fm-item-icon.fa-file-word { color: #2b579a; }
+        .fm-item-icon.fa-file-excel { color: #217346; }
+        .fm-item-icon.fa-file-powerpoint { color: #d24726; }
+        .fm-item-icon.fa-file { color: #adb5bd; } /* Genérico mais claro */
+
+        .fm-actions a, .fm-actions button {
+            color: var(--fm-secondary-color);
+            text-decoration: none;
+            margin: 0 4px; /* Menos margem horizontal */
+            padding: 5px 8px; /* Mais padding para área de clique maior */
+            border-radius: 5px; /* Mais arredondado */
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+        .fm-actions a:hover, .fm-actions button:hover {
+            background-color: var(--fm-hover-bg);
+            color: #343a40; /* Mais escuro no hover */
+        }
+         .fm-actions .text-danger:hover {
+            color: #a51c2a !important; /* Vermelho mais escuro no hover do delete */
+         }
+        .fm-actions button {
+            background: none;
+            border: none;
+            padding: 5px 8px; /* Mesmo padding dos links */
+            cursor: pointer;
+            vertical-align: middle; /* Alinhar botão com ícones <a> */
+        }
+        .hidden {
+            display: none;
+        }
+         /* Estilo para seleção */
+         tr.selected {
+             background-color: var(--fm-selected-bg) !important;
+             font-weight: 500;
+         }
+         #loadingIndicator {
+             position: fixed;
+             top: 50%;
+             left: 50%;
+             transform: translate(-50%, -50%);
+             background-color: rgba(40, 44, 52, 0.85); /* Fundo escuro semitransparente */
+             color: white;
+             padding: 20px 30px; /* Mais padding */
+             border-radius: 8px;
+             z-index: 1060; /* Acima dos modais */
+             font-size: 1.1rem;
+             display: none; /* Inicialmente oculto */
+             box-shadow: 0 5px 15px rgba(0,0,0,.3); /* Sombra mais pronunciada */
+         }
+         #loadingIndicator i {
+             margin-right: 12px; /* Mais espaço para o ícone */
+         }
+
+        /* --- Estilos Drag and Drop Melhorados --- */
+        .drop-zone {
+            border: 2px dashed var(--fm-border-color); /* Borda inicial visível mas sutil */
+            border-radius: 0.375rem;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+            position: relative;
+            background-clip: padding-box;
+            min-height: 150px; /* Altura mínima para facilitar o drop */
+            display: flex; /* Para centralizar mensagem de pasta vazia */
+            flex-direction: column;
+        }
+
+        .drop-zone.drag-over {
+            border-color: var(--fm-drop-zone-border); /* Borda azul ativa */
+            background-color: var(--fm-drop-zone-bg); /* Fundo azul bem claro e transparente */
+            border-style: solid; /* Borda sólida ao arrastar */
+        }
+
+        .drop-zone.drag-over::before {
+            content: 'Solte os arquivos aqui para upload'; /* Texto mais direto */
+            position: absolute;
+            inset: 0;
+            background-color: var(--fm-drop-zone-overlay-bg); /* Overlay azul mais visível */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem; /* Texto maior */
+            color: var(--fm-drop-zone-overlay-text); /* Azul um pouco mais escuro */
+            font-weight: 600;
+            z-index: 10;
+            pointer-events: none;
+            border-radius: inherit;
+            text-align: center;
+            padding: 1rem;
+            backdrop-filter: blur(2px); /* Efeito de desfoque sutil */
+        }
+         /* Ajuste para mensagem de pasta vazia dentro da drop zone */
+         #emptyFolderMessage {
+             margin: auto; /* Centraliza a mensagem vertical e horizontalmente */
+             padding: 3rem;
+             font-size: 1.1rem;
+         }
+        /* --- Fim Estilos Drag and Drop --- */
+
+         footer {
+            background-color: #e9ecef;
+            padding: 1rem 0; /* Mais padding */
+            margin-top: 2rem; /* Mais espaço acima */
+            font-size: 0.85rem;
+            color: var(--fm-secondary-color);
+            flex-shrink: 0;
+            border-top: 1px solid var(--fm-border-color);
+         }
+         footer code {
+             background-color: #fff;
+             padding: 2px 5px;
+             border-radius: 3px;
+             border: 1px solid #ccc;
+             font-size: 0.9em;
+         }
+
+         /* Modal file browser */
+         #destinationModal .modal-body {
+             max-height: 65vh; /* Aumenta altura */
+             overflow-y: auto;
+             background-color: var(--fm-light-gray); /* Fundo do corpo do modal */
+         }
+          #destinationModal #destinationCurrentPath {
+              font-weight: 500;
+              color: #333;
+          }
+         #destinationFolderList button {
+              display: flex; /* Usa flex para alinhar ícone e texto */
+              align-items: center;
+              width: 100%;
+              text-align: left;
+              padding: 0.7rem 1rem; /* Mais padding */
+              background: #fff;
+              border: none;
+              border-bottom: 1px solid var(--fm-border-color);
+              font-size: 0.95rem;
+              transition: background-color 0.15s ease;
+         }
+         #destinationFolderList button:last-child { border-bottom: none; }
+         #destinationFolderList button:hover { background-color: var(--fm-hover-bg); }
+         #destinationFolderList button i {
+              margin-right: 10px;
+              color: var(--fm-folder-color);
+              font-size: 1.1em;
+         }
+         #destinationModal .modal-footer button:first-child { /* Botão Subir Nível */
+             background-color: var(--fm-light-gray);
+             border-color: var(--fm-border-color);
+             color: var(--fm-secondary-color);
+         }
+         #destinationModal .modal-footer button:first-child:hover {
+             background-color: #d3d6d8;
+         }
+
+        /* Scrollbar (Webkit) */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #aaa; }
+         /* Scrollbar (Firefox) */
+         * { scrollbar-width: thin; scrollbar-color: #ccc #f1f1f1; }
+
+    </style>
+</head>
+<body>
+
+    <!-- Indicador de Carregamento Global -->
+    <div id="loadingIndicator">
+        <i class="fas fa-spinner fa-spin"></i> Processando...
+    </div>
+
+    <main class="container mt-3">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+             <h3 class="mb-0 me-3"><i class="fas fa-folder-open me-2 text-primary"></i>File Manager: <span class="fw-normal text-muted">{{ site_domain }}</span></h3>
+             <a href="/" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i> Voltar ao Dashboard</a>
+        </div>
+
+
+        <!-- Breadcrumbs -->
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb" id="breadcrumbContainer">
+                <!-- Breadcrumbs serão gerados por JS -->
+                <li class="breadcrumb-item"><a href="#" onclick="event.preventDefault(); navigateTo('');"><i class="fas fa-home"></i> Raiz</a></li>
+            </ol>
+        </nav>
+
+        <!-- Barra de Ferramentas -->
+        <div class="fm-toolbar d-flex justify-content-between align-items-center flex-wrap gap-2"> {# Usa gap para espaçamento responsivo #}
+            <div class="btn-group btn-group-sm" role="group" aria-label="Ações de criação">
+                <button class="btn btn-success" onclick="triggerUpload()" title="Fazer upload de arquivos">
+                    <i class="fas fa-upload me-1"></i> Upload
+                </button>
+                <input type="file" id="fileUploadInput" class="hidden" multiple onchange="uploadFiles(this.files)">
+
+                <button class="btn btn-primary" onclick="createNewFolder()" title="Criar nova pasta">
+                    <i class="fas fa-folder-plus me-1"></i> Nova Pasta
+                </button>
+            </div>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Ações de manipulação"> {# Agrupa botões de ação #}
+                <button class="btn btn-outline-secondary" id="renameButton" onclick="triggerRename()" disabled title="Renomear item selecionado">
+                    <i class="fas fa-edit me-1"></i> Renomear
+                </button>
+                <button class="btn btn-outline-secondary" id="copyButton" onclick="triggerCopy()" disabled title="Copiar itens selecionados para...">
+                    <i class="fas fa-copy me-1"></i> Copiar Para
+                </button>
+                <button class="btn btn-outline-secondary" id="moveButton" onclick="triggerMove()" disabled title="Mover itens selecionados para...">
+                    <i class="fas fa-share-square me-1"></i> Mover Para {# Ícone diferente para mover #}
+                </button>
+                <button class="btn btn-outline-danger" id="deleteButton" onclick="deleteSelected()" disabled title="Excluir itens selecionados">
+                    <i class="fas fa-trash-alt me-1"></i> Excluir
+                </button>
+            </div>
+        </div>
+
+        <!-- Tabela de Arquivos / Drop Zone -->
+        <div class="drop-zone bg-white shadow-sm" id="fileDropZone"> {# Adicionado ID e classe drop-zone, bg e shadow #}
+             <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 30px;"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)" title="Selecionar Todos"></th>
+                            <th scope="col"><i class="fas fa-file-signature me-1"></i> Nome</th> {# Ícone diferente #}
+                            <th scope="col" class="text-end"><i class="fas fa-weight-hanging me-1"></i> Tamanho</th>
+                            <th scope="col" class="text-center"><i class="fas fa-calendar-alt me-1"></i> Modificado em</th>
+                            <th scope="col" class="text-center" style="width: 150px;"><i class="fas fa-bolt me-1"></i> Ações</th> {# Largura um pouco maior #}
+                        </tr>
+                    </thead>
+                    <tbody id="fileListBody">
+                        <!-- Loading inicial -->
+                        <tr>
+                            <td colspan="5" class="text-center p-5">
+                                <div id="initialLoading" class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Carregando...</span>
+                                </div>
+                                <span id="emptyFolderMessage" class="text-muted hidden">Esta pasta está vazia.</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center">
+         <div class="container">
+              CicoPanel File Manager &copy; <span id="currentYear"></span> - Navegando em: <code id="footerBasePath" title="{{ base_path }}">{{ base_path }}</code>
+              <br>
+              <small class="text-danger">Atenção: Ações de escrita requerem permissões adequadas no servidor.</small>
+         </div>
+    </footer>
+
+    <!-- Modal Renomear -->
+    <div class="modal fade" id="renameModal" tabindex="-1" aria-labelledby="renameModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="renameModalLabel"><i class="fas fa-edit me-2"></i>Renomear Item</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Renomear: <strong id="renameItemName" class="text-break"></strong></p> {# text-break para nomes longos #}
+                    <input type="hidden" id="renameOldName">
+                    <div class="mb-3">
+                        <label for="renameNewName" class="form-label">Novo Nome:</label>
+                        <input type="text" class="form-control" id="renameNewName" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="executeRename()">Renomear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Copiar/Mover (Seleção de Destino) -->
+    <div class="modal fade" id="destinationModal" tabindex="-1" aria-labelledby="destinationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="destinationModalLabel"><i class="fas fa-folder-tree me-2"></i>Selecionar Pasta de Destino</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                     <p class="mb-2">Itens selecionados: <span id="destinationItemCount" class="badge bg-secondary"></span></p>
+                     <p class="mb-3">Navegando em: <code id="destinationCurrentPath">/</code></p>
+                     <input type="hidden" id="destinationActionType"> <!-- 'copy' or 'move' -->
+                     <input type="hidden" id="destinationSourcePath">
+                     <input type="hidden" id="destinationItemsJson">
+
+                     <div id="destinationFolderList" class="border rounded bg-white"> {# Borda e fundo branco para a lista #}
+                         <!-- Lista de pastas carregada por JS -->
+                         <div class="text-center p-4"> {# Mais padding no loading #}
+                             <div class="spinner-border spinner-border-sm" role="status">
+                                 <span class="visually-hidden">Carregando pastas...</span>
+                             </div>
+                         </div>
+                     </div>
+                </div>
+                <div class="modal-footer justify-content-between">
+                     <button type="button" class="btn btn-outline-secondary" onclick="navigateDestinationUp()" title="Ir para pasta pai"> {# Outline e title #}
+                         <i class="fas fa-arrow-up me-1"></i> Subir Nível
+                     </button>
+                    <div>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" id="confirmDestinationButton" onclick="executeCopyMove()">Confirmar Destino</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Variáveis Globais (sem alterações)
+        const siteDomain = "{{ site_domain }}";
+        const basePath = "{{ base_path }}";
+        let currentPath = "";
+        let currentFiles = [];
+        let renameModalInstance = null;
+        let destinationModalInstance = null;
+
+        // Elementos DOM (sem alterações)
+        const fileListBody = document.getElementById('fileListBody');
+        const breadcrumbContainer = document.getElementById('breadcrumbContainer');
+        const initialLoading = document.getElementById('initialLoading');
+        const emptyFolderMessage = document.getElementById('emptyFolderMessage');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const renameButton = document.getElementById('renameButton');
+        const copyButton = document.getElementById('copyButton');
+        const moveButton = document.getElementById('moveButton');
+        const deleteButton = document.getElementById('deleteButton');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const footerBasePath = document.getElementById('footerBasePath');
+        const fileDropZone = document.getElementById('fileDropZone'); // Pega a drop zone
+
+        // --- Funções de UI (Atualizadas) ---
+
+        function showLoading(message = 'Processando...') {
+             loadingIndicator.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${message}`;
+             loadingIndicator.style.display = 'flex'; // Usa flex para alinhar o ícone e texto
+        }
+
+        function hideLoading() {
+             loadingIndicator.style.display = 'none';
+        }
+
+        function updateActionButtons() {
+             const selectedItems = getSelectedItems();
+             const itemCount = selectedItems.length;
+
+             renameButton.disabled = itemCount !== 1;
+             copyButton.disabled = itemCount === 0;
+             moveButton.disabled = itemCount === 0;
+             deleteButton.disabled = itemCount === 0;
+        }
+
+        function formatBytes(bytes, decimals = 2) {
+            if (!bytes || bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        function formatTimestamp(unix_timestamp) {
+             if (!unix_timestamp) return '-';
+             try {
+                 const date = new Date(unix_timestamp * 1000);
+                 return date.toLocaleString('pt-BR', {
+                     day: '2-digit', month: '2-digit', year: 'numeric',
+                     hour: '2-digit', minute: '2-digit'
+                 });
+             } catch (e) {
+                 console.warn("Error formatting timestamp:", unix_timestamp, e);
+                 return '-';
+             }
+        }
+
+        function getFileIcon(filename, isDir) {
+             if (isDir) return 'fas fa-folder';
+             const extension = filename.split('.').pop().toLowerCase();
+             switch (extension) {
+                 case 'jpg': case 'jpeg': case 'png': case 'gif': case 'bmp': case 'svg': case 'webp': case 'ico': return 'fas fa-file-image'; // Adicionado ico
+                 case 'pdf': return 'fas fa-file-pdf';
+                 case 'zip': case 'rar': case 'gz': case 'tar': case '7z': return 'fas fa-file-archive';
+                 case 'txt': case 'log': case 'md': case 'csv': return 'fas fa-file-lines'; // Adicionado csv
+                 case 'doc': case 'docx': return 'fas fa-file-word';
+                 case 'xls': case 'xlsx': return 'fas fa-file-excel';
+                 case 'ppt': case 'pptx': return 'fas fa-file-powerpoint';
+                 case 'mp3': case 'wav': case 'ogg': case 'aac': case 'flac': return 'fas fa-file-audio'; // Adicionado flac
+                 case 'mp4': case 'avi': case 'mkv': case 'mov': case 'webm': case 'wmv': return 'fas fa-file-video'; // Adicionado wmv
+                 case 'js': case 'css': case 'html': case 'htm': case 'py': case 'java': case 'c': case 'cpp': case 'php': case 'json': case 'xml': case 'sh': case 'bat': case 'rb': case 'go': case 'sql': return 'fas fa-file-code'; // Adicionado htm, bat, rb, go, sql
+                 default: return 'fas fa-file';
+             }
+        }
+
+        function renderBreadcrumbs() {
+            breadcrumbContainer.innerHTML = '';
+            let cumulativePath = '';
+            const rootLi = document.createElement('li');
+            rootLi.classList.add('breadcrumb-item');
+            rootLi.innerHTML = `<a href="#" onclick="event.preventDefault(); navigateTo('');" title="Ir para a pasta raiz"><i class="fas fa-home"></i> Raiz</a>`;
+            breadcrumbContainer.appendChild(rootLi);
+
+            if (currentPath) {
+                const parts = currentPath.split('/').filter(p => p);
+                parts.forEach((part, index) => {
+                    cumulativePath += (cumulativePath ? '/' : '') + part;
+                    const li = document.createElement('li');
+                    li.classList.add('breadcrumb-item');
+                    if (index === parts.length - 1) {
+                        li.classList.add('active');
+                        li.setAttribute('aria-current', 'page');
+                        li.textContent = part;
+                    } else {
+                        const pathForLink = cumulativePath; // Capture path at this iteration
+                         li.innerHTML = `<a href="#" onclick="event.preventDefault(); navigateTo('${pathForLink}');" title="Ir para ${part}">${part}</a>`;
+                    }
+                    breadcrumbContainer.appendChild(li);
+                });
+            }
+            footerBasePath.textContent = basePath + (currentPath ? '/' + currentPath : '');
+        }
+
+        function renderFileList(files) {
+            currentFiles = files;
+            fileListBody.innerHTML = '';
+            initialLoading.parentElement.classList.add('hidden'); // Esconde a célula do loading
+            emptyFolderMessage.classList.add('hidden'); // Esconde a msg de pasta vazia
+
+            if (!files || files.length === 0) {
+                 emptyFolderMessage.classList.remove('hidden');
+                 // Adiciona uma linha vazia para manter a altura mínima da drop-zone
+                 fileListBody.innerHTML = `<tr><td colspan="5" style="height: 100px; border: none;"></td></tr>`; // Célula invisível
+                 return;
+            }
+
+
+            files.sort((a, b) => {
+                 if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+                 return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
+            });
+
+
+            files.forEach(file => {
+                const tr = document.createElement('tr');
+                tr.dataset.name = file.name;
+                tr.dataset.isDir = file.is_dir;
+                tr.style.cursor = file.is_dir ? 'pointer' : 'default'; // Cursor diferente para pastas
+
+                // Evento de clique na linha
+                 tr.addEventListener('click', (event) => {
+                     // Ignora cliques nos checkboxes, links ou botões dentro das ações
+                     if (event.target.closest('.fm-item-checkbox, .fm-actions a, .fm-actions button')) {
+                         return;
+                     }
+                     // Se for diretório, navega
+                     if (file.is_dir) {
+                         navigateTo((currentPath ? currentPath + '/' : '') + file.name);
+                     } else {
+                         // Se for arquivo, seleciona/desseleciona
+                         toggleRowSelection(tr);
+                     }
+                 });
+
+                const iconClass = getFileIcon(file.name, file.is_dir);
+
+                // Checkbox
+                const tdCheckbox = document.createElement('td');
+                 tdCheckbox.innerHTML = `<input type="checkbox" class="form-check-input fm-item-checkbox" value="${file.name}" onclick="event.stopPropagation(); handleCheckboxClick(this, event);">`; // Usa form-check-input e nova função
+
+                // Nome
+                const tdName = document.createElement('td');
+                tdName.innerHTML = `<i class="fm-item-icon ${iconClass}"></i> ${file.name}`;
+                 tdName.title = file.name; // Adiciona tooltip com nome completo
+
+                // Tamanho
+                const tdSize = document.createElement('td');
+                tdSize.classList.add('text-end');
+                tdSize.textContent = file.is_dir ? '-' : formatBytes(file.size);
+
+                // Modificado em
+                const tdModified = document.createElement('td');
+                tdModified.classList.add('text-center');
+                tdModified.textContent = formatTimestamp(file.modified);
+
+                // Ações
+                const tdActions = document.createElement('td');
+                tdActions.classList.add('text-center', 'fm-actions');
+                 tdActions.innerHTML = `
+                    <a href="#" onclick="event.preventDefault(); event.stopPropagation(); triggerRename('${file.name}');" title="Renomear"><i class="fas fa-edit"></i></a>
+                    <a href="#" onclick="event.preventDefault(); event.stopPropagation(); triggerCopy(['${file.name}']);" title="Copiar Para..."><i class="fas fa-copy"></i></a>
+                    <a href="#" onclick="event.preventDefault(); event.stopPropagation(); triggerMove(['${file.name}']);" title="Mover Para..."><i class="fas fa-share-square"></i></a>
+                    <button class="text-danger" onclick="event.preventDefault(); event.stopPropagation(); deleteSingleItem('${file.name}', ${file.is_dir});" title="Excluir"><i class="fas fa-trash-alt"></i></button>
+                 `;
+
+                tr.appendChild(tdCheckbox);
+                tr.appendChild(tdName);
+                tr.appendChild(tdSize);
+                tr.appendChild(tdModified);
+                tr.appendChild(tdActions);
+                fileListBody.appendChild(tr);
+            });
+            selectAllCheckbox.checked = false;
+            updateActionButtons();
+        }
+
+         // --- Funções de Seleção (Atualizadas) ---
+
+         function toggleRowSelection(rowElement) {
+             rowElement.classList.toggle('selected');
+             const checkbox = rowElement.querySelector('.fm-item-checkbox');
+             if (checkbox) {
+                 checkbox.checked = rowElement.classList.contains('selected');
+             }
+             updateActionButtons();
+             updateSelectAllCheckboxState();
+         }
+
+         function handleCheckboxClick(checkbox, event) {
+              // Chamada quando o checkbox é clicado diretamente
+              event.stopPropagation(); // Impede que o clique no checkbox acione o clique na linha
+              const row = checkbox.closest('tr');
+              if (row) {
+                 if (checkbox.checked) {
+                     row.classList.add('selected');
+                 } else {
+                     row.classList.remove('selected');
+                 }
+              }
+              updateActionButtons();
+              updateSelectAllCheckboxState();
+          }
+
+         function getSelectedItems() {
+             const selected = [];
+             // Seleciona os checkboxes marcados e pega o valor (nome do item)
+             document.querySelectorAll('#fileListBody .fm-item-checkbox:checked').forEach(checkbox => {
+                 selected.push(checkbox.value);
+             });
+             return selected;
+         }
+
+         function toggleSelectAll(checked) {
+             document.querySelectorAll('#fileListBody .fm-item-checkbox').forEach(checkbox => {
+                 checkbox.checked = checked;
+                 const row = checkbox.closest('tr');
+                 if (row) {
+                     row.classList.toggle('selected', checked); // Adiciona ou remove a classe baseado no estado
+                 }
+             });
+             updateActionButtons();
+         }
+
+         function updateSelectAllCheckboxState() {
+             const totalCheckboxes = document.querySelectorAll('#fileListBody .fm-item-checkbox').length;
+             const selectedCheckboxes = document.querySelectorAll('#fileListBody .fm-item-checkbox:checked').length;
+
+             if (totalCheckboxes === 0) {
+                 selectAllCheckbox.checked = false;
+                 selectAllCheckbox.indeterminate = false;
+                 return;
+             }
+
+             selectAllCheckbox.checked = totalCheckboxes === selectedCheckboxes;
+             selectAllCheckbox.indeterminate = selectedCheckboxes > 0 && selectedCheckboxes < totalCheckboxes;
+         }
+
+         // Listener para cliques em checkboxes individuais removido daqui,
+         // pois a lógica está em handleCheckboxClick e no clique da linha
+
+        // --- Funções de Ações (Chamadas API - Ligeiramente ajustadas) ---
+
+        async function makeApiCall(endpoint, method = 'GET', body = null, isFormData = false) {
+             showLoading(); // Mostra loading antes da chamada
+             try {
+                 const options = { method: method, headers: {} };
+                 if (body) {
+                     if (isFormData) {
+                         options.body = body; // Deixa o browser setar o Content-Type
+                     } else {
+                         options.headers['Content-Type'] = 'application/json';
+                         options.body = JSON.stringify(body);
+                     }
+                 }
+                 const response = await fetch(`/api/file_manager/${endpoint}`, options);
+                 const data = await response.json().catch(() => ({ success: false, error: `Erro ${response.status}: ${response.statusText} (Resposta não JSON)` }));
+
+                 if (!response.ok || !data.success) {
+                     // Extrai erros específicos se disponíveis (do backend)
+                     let errorMsg = data.error || `Erro desconhecido (${response.status})`;
+                     if (data.details && Array.isArray(data.details) && data.details.length > 0) {
+                         errorMsg += '\nDetalhes:\n - ' + data.details.join('\n - ');
+                     } else if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
+                         errorMsg += '\nErros:\n - ' + data.errors.join('\n - ');
+                     }
+                     throw new Error(errorMsg);
+                 }
+                 return data;
+             } catch (error) {
+                  console.error(`Erro na chamada API para ${endpoint}:`, error);
+                  // Usa alert para mostrar o erro formatado, incluindo detalhes/erros
+                  alert(`Erro: ${error.message}`);
+                  return null; // Indica falha
+             } finally {
+                 hideLoading(); // Esconde loading no final
+             }
+        }
+
+        async function loadFileList(relativePath = "") {
+             // Reset UI state before loading
+             selectAllCheckbox.checked = false;
+             selectAllCheckbox.indeterminate = false;
+             updateActionButtons(); // Disable buttons initially
+             emptyFolderMessage.classList.add('hidden');
+             fileListBody.innerHTML = `<tr><td colspan="5" class="text-center p-5"><div id="initialLoading" class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></td></tr>`; // Show loading row
+
+             currentPath = relativePath;
+             const data = await makeApiCall(`list?domain=${siteDomain}&path=${encodeURIComponent(relativePath)}`);
+
+             if (data && data.files) {
+                 renderFileList(data.files);
+                 renderBreadcrumbs();
+             } else {
+                 // Trata erro de carregamento no renderFileList
+                 fileListBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger p-5">Erro ao carregar arquivos. Verifique o console.</td></tr>`;
+                 initialLoading.parentElement?.classList.add('hidden'); // Oculta loading se existir pai
+                 emptyFolderMessage.classList.add('hidden');
+                 renderBreadcrumbs(); // Renderiza breadcrumbs mesmo em erro
+             }
+             // Garante que o estado dos botões esteja correto após o carregamento
+             updateActionButtons();
+             updateSelectAllCheckboxState();
+        }
+
+        function navigateTo(relativePath) {
+            loadFileList(relativePath);
+        }
+
+        function triggerUpload() {
+             document.getElementById('fileUploadInput').click();
+        }
+
+        // --- Função para Upload de Arquivos ---
+        async function uploadFiles(files) {
+            if (!files || files.length === 0) {
+                // Não mostra alerta se o input for cancelado
+                // alert("Nenhum arquivo selecionado para upload.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('domain', siteDomain); // Inclui o domínio no form data
+            formData.append('path', currentPath);   // Inclui o caminho atual
+
+            // Adiciona cada arquivo ao FormData
+            // A chave 'files[]' deve corresponder ao que o backend Flask espera com request.files.getlist('files[]')
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files[]', files[i]);
+            }
+
+            // Mostra o loading com mensagem específica
+            showLoading(`Enviando ${files.length} arquivo(s)...`);
+
+            // Usa makeApiCall para enviar FormData
+            // O quarto argumento 'true' indica que o corpo é FormData (para não setar Content-Type manualmente)
+            const data = await makeApiCall('upload', 'POST', formData, true);
+
+            hideLoading(); // Esconde loading após a chamada (seja sucesso ou falha)
+
+            if (data && data.success) {
+                 // Se houve sucesso (mesmo que parcial), mostra a mensagem e atualiza a lista
+                 let message = data.message || `${files.length} arquivo(s) processado(s).`;
+                 if(data.errors && data.errors.length > 0) {
+                     message += "\nAlguns erros ocorreram:\n - " + data.errors.join('\n - ');
+                     alert(message); // Mostra alerta se houver erros específicos
+                 } else {
+                     console.log(message); // Loga sucesso se não houver erros
+                     // Poderia usar um toast/notificação mais sutil para sucesso total aqui
+                 }
+                 loadFileList(currentPath); // Atualiza a lista de arquivos após o upload
+             } else if (data && data.error) {
+                 // Se makeApiCall retornou mas com erro específico do backend
+                 // makeApiCall já deve ter mostrado um alerta, mas logamos também.
+                 console.error("Erro no upload (reportado pelo backend):", data.error);
+                 if (data.details) console.error("Detalhes:", data.details);
+             }
+             // Se makeApiCall retornou null (erro de rede ou JS antes da resposta),
+             // o erro já foi tratado e mostrado por makeApiCall.
+             // A lista de arquivos não será recarregada neste caso.
+        }
+        // --- Fim da Função para Upload de Arquivos ---
+
+        async function createNewFolder() {
+             const folderName = prompt("Digite o nome da nova pasta:", "Nova Pasta");
+             if (!folderName || folderName.trim() === "") return;
+
+             const body = { domain: siteDomain, path: currentPath, name: folderName.trim() };
+             const data = await makeApiCall('create_folder', 'POST', body);
+             if (data) {
+                 // alert(data.message || `Pasta '${folderName}' criada com sucesso!`); // Opcional, makeApiCall já deve ter mostrado
+                 loadFileList(currentPath);
+             }
+        }
+
+        function triggerRename(singleItemName = null) {
+             const itemsToRename = singleItemName ? [singleItemName] : getSelectedItems();
+             if (itemsToRename.length !== 1) {
+                 alert("Selecione exatamente um item para renomear.");
+                 return;
+             }
+             const oldName = itemsToRename[0];
+             document.getElementById('renameOldName').value = oldName;
+             document.getElementById('renameItemName').textContent = oldName;
+             document.getElementById('renameNewName').value = oldName;
+             renameModalInstance.show();
+             setTimeout(() => {
+                const input = document.getElementById('renameNewName');
+                input?.focus();
+                input?.select();
+            }, 500);
+         }
+
+         async function executeRename() {
+             const oldName = document.getElementById('renameOldName').value;
+             const newName = document.getElementById('renameNewName').value.trim();
+             if (!newName || newName === oldName) {
+                 renameModalInstance.hide(); return;
+             }
+             const body = { domain: siteDomain, path: currentPath, old_name: oldName, new_name: newName };
+             renameModalInstance.hide();
+             const data = await makeApiCall('rename', 'POST', body);
+             if (data) loadFileList(currentPath);
+         }
+
+         function deleteSingleItem(itemName, isDir) {
+             const itemType = isDir ? "pasta" : "arquivo";
+             if (confirm(`Tem certeza que deseja excluir ${itemType === 'pasta' ? 'a ' : 'o '} ${itemType} "${itemName}"?\nEsta ação é irreversível!`)) {
+                 executeDelete([itemName]);
+             }
+         }
+
+         function deleteSelected() {
+             const itemsToDelete = getSelectedItems();
+             if (itemsToDelete.length === 0) return;
+             if (confirm(`Tem certeza que deseja excluir ${itemsToDelete.length} item(ns) selecionado(s)?\nEsta ação é irreversível!`)) {
+                 executeDelete(itemsToDelete);
+             }
+         }
+
+         async function executeDelete(items) {
+             const body = { domain: siteDomain, path: currentPath, items: items };
+             const data = await makeApiCall('delete', 'POST', body);
+             if (data) loadFileList(currentPath);
+         }
+
+        // --- Funções de Copiar/Mover (Atualizadas) ---
+
+         let currentDestinationPath = "";
+
+         function triggerCopy(singleItemNames = null) {
+             const items = singleItemNames || getSelectedItems();
+             if (items.length === 0) return;
+             setupDestinationModal('copy', items);
+         }
+
+         function triggerMove(singleItemNames = null) {
+             const items = singleItemNames || getSelectedItems();
+             if (items.length === 0) return;
+             setupDestinationModal('move', items);
+         }
+
+        function setupDestinationModal(actionType, items) {
+            document.getElementById('destinationActionType').value = actionType;
+            document.getElementById('destinationSourcePath').value = currentPath;
+            document.getElementById('destinationItemsJson').value = JSON.stringify(items);
+            document.getElementById('destinationItemCount').textContent = items.length;
+            const modalLabel = document.getElementById('destinationModalLabel');
+            modalLabel.innerHTML = `<i class="fas fa-${actionType === 'copy' ? 'copy' : 'share-square'} me-2"></i> ${actionType === 'copy' ? 'Copiar' : 'Mover'} Itens Para...`;
+            document.getElementById('confirmDestinationButton').textContent = actionType === 'copy' ? 'Copiar Aqui' : 'Mover Aqui';
+
+            currentDestinationPath = ""; // Começa na raiz
+            loadDestinationFolders(currentDestinationPath);
+            destinationModalInstance.show();
+        }
+
+        async function loadDestinationFolders(destPath) {
+             const listElement = document.getElementById('destinationFolderList');
+             listElement.innerHTML = `<div class="text-center p-4"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Carregando...</span></div></div>`;
+             document.getElementById('destinationCurrentPath').textContent = '/' + destPath;
+             document.querySelector('#destinationModal .modal-footer button:first-child').disabled = !destPath; // Habilita/desabilita Subir Nível
+
+             // Usamos folders_only=true
+             const data = await makeApiCall(`list?domain=${siteDomain}&path=${encodeURIComponent(destPath)}&folders_only=true`);
+
+             listElement.innerHTML = ''; // Limpa loading/anterior
+             if (data && data.files) {
+                  if (data.files.length === 0) {
+                     listElement.innerHTML = '<p class="text-muted text-center p-3">Nenhuma subpasta encontrada.</p>';
+                 } else {
+                     // Ordena pastas alfabeticamente
+                      data.files.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
+
+                     data.files.forEach(folder => {
+                         // Não precisamos mais checar is_dir pois a API já filtra
+                         const btn = document.createElement('button');
+                         btn.innerHTML = `<i class="fas fa-folder"></i> ${folder.name}`;
+                          const targetPath = (destPath ? destPath + '/' : '') + folder.name;
+                         btn.onclick = () => {
+                              // currentDestinationPath = targetPath; // Atualiza o estado
+                             loadDestinationFolders(targetPath); // Navega dentro do modal
+                         };
+                         btn.title = `Navegar para /${targetPath}`; // Tooltip
+                         listElement.appendChild(btn);
+                     });
+                 }
+             } else {
+                 listElement.innerHTML = '<p class="text-danger text-center p-3">Erro ao carregar pastas.</p>';
+             }
+             // Habilita/desabilita botão "Subir Nível" (feito acima)
+        }
+
+
+        function navigateDestinationUp() {
+             if (!currentDestinationPath) return;
+             const parts = currentDestinationPath.split('/');
+             parts.pop();
+             currentDestinationPath = parts.join('/');
+             loadDestinationFolders(currentDestinationPath);
+        }
+
+        async function executeCopyMove() {
+             const actionType = document.getElementById('destinationActionType').value;
+             const sourcePath = document.getElementById('destinationSourcePath').value;
+             const items = JSON.parse(document.getElementById('destinationItemsJson').value);
+             const destPath = currentDestinationPath; // Caminho selecionado no modal
+
+             // Validação básica no cliente (Backend deve ter validação mais robusta)
+             if (sourcePath === destPath && actionType === 'move') {
+                  alert("Origem e destino são iguais. Não é possível mover.");
+                  return;
+             }
+             // Verifica se está tentando mover/copiar uma pasta para dentro dela mesma
+             for (const itemName of items) {
+                const sourceItemPath = (sourcePath ? sourcePath + '/' : '') + itemName;
+                 // Verifica se o item é uma pasta (pode precisar buscar essa info ou assumir worst-case)
+                 // Para simplificar, vamos verificar apenas se o destino começa com o caminho do item de origem
+                 if (destPath.startsWith(sourceItemPath + '/')) {
+                      alert(`Não é possível ${actionType === 'copy' ? 'copiar' : 'mover'} a pasta "${itemName}" para dentro dela mesma.`);
+                      return;
+                 }
+             }
+
+
+             destinationModalInstance.hide();
+
+             const body = { domain: siteDomain, source_path: sourcePath, items: items, dest_path: destPath };
+             const endpoint = actionType; // 'copy' ou 'move'
+             const data = await makeApiCall(endpoint, 'POST', body);
+
+             if (data) {
+                 loadFileList(currentPath);
+             }
+        }
+
+
+        // --- Funções de Drag and Drop (Melhoradas) ---
+            function setupDragAndDrop() {
+                if (!fileDropZone) return;
+
+                // Previne comportamento padrão em toda a página para evitar redirecionamentos acidentais
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                     document.body.addEventListener(eventName, preventDefaults, false);
+                });
+
+                // Adiciona listeners específicos para a drop zone
+                 fileDropZone.addEventListener('dragenter', highlight, false);
+                 fileDropZone.addEventListener('dragover', highlight, false); // Precisa do over para drop funcionar
+                 fileDropZone.addEventListener('dragleave', unhighlight, false);
+                 fileDropZone.addEventListener('drop', handleDrop, false);
+            }
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            function highlight(e) {
+                 // Verifica se há arquivos sendo arrastados
+                 if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+                      fileDropZone?.classList.add('drag-over');
+                      e.dataTransfer.dropEffect = 'copy'; // Indica visualmente que é uma cópia
+                 } else {
+                     // Se não forem arquivos, não mostra highlight e indica que não pode dropar
+                      e.dataTransfer.dropEffect = 'none';
+                 }
+            }
+
+            function unhighlight(e) {
+                // Verifica se o mouse realmente saiu da drop zone, não apenas de um elemento filho
+                if (!fileDropZone?.contains(e.relatedTarget)) {
+                      fileDropZone?.classList.remove('drag-over');
+                 }
+            }
+
+            function handleDrop(e) {
+                fileDropZone?.classList.remove('drag-over'); // Remove highlight
+                const dt = e.dataTransfer;
+                const files = dt?.files;
+
+                if (files && files.length > 0) {
+                    console.log(`Arquivos arrastados: ${files.length}`);
+                    uploadFiles(files);
+                } else {
+                    console.log("Drop sem arquivos válidos detectado.");
+                }
+            }
+
+
+            // --- Inicialização ---
+        document.addEventListener('DOMContentLoaded', function() {
+             // Inicializa Modais
+             const renameModalEl = document.getElementById('renameModal');
+             if (renameModalEl) renameModalInstance = new bootstrap.Modal(renameModalEl);
+             const destModalEl = document.getElementById('destinationModal');
+             if (destModalEl) {
+                 destinationModalInstance = new bootstrap.Modal(destModalEl);
+                 destModalEl.addEventListener('hidden.bs.modal', () => {
+                     currentDestinationPath = "";
+                     document.getElementById('destinationFolderList').innerHTML = '';
+                 });
+             }
+
+             setupDragAndDrop(); // Configura drag and drop
+
+             loadFileList(currentPath); // Carrega a lista inicial
+        });
+
+    </script>
+
+</body>
+</html>

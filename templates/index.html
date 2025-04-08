@@ -404,7 +404,7 @@
                                     <th scope="col" class="text-center"><i class="fas fa-cog me-1"></i> Tipo</th>
                                     <th scope="col"><i class="fas fa-info-circle me-1"></i> Detalhes</th>
                                     <th scope="col" class="text-center"><i class="fas fa-shield-alt me-1"></i> SSL</th>
-                                     <th scope="col" style="width: 12%;" class="text-center"><i class="fas fa-bolt me-1"></i> Ações</th> {# Espaço um pouco maior para ações #}
+                                     <th scope="col" style="width: 15%;" class="text-center"><i class="fas fa-bolt me-1"></i> Ações</th> {# Aumenta um pouco mais o espaço #}
                                 </tr>
                             </thead>
                             <tbody>
@@ -475,8 +475,20 @@
                                         <td class="actions-cell text-center">
                                              {# Adiciona um wrapper para espaçamento se múltiplos botões forem adicionados #}
                                               <div class="btn-group btn-group-sm" role="group">
-                                                 {# ATENÇÃO: Mensagem de confirmação ATUALIZADA para incluir remoção de diretório #}
-                                                 <form action="{{ url_for('delete_site', domain=site.domain) }}" method="post" onsubmit="return confirm('ATENÇÃO!\n\nTem certeza que deseja apagar o site {{ site.domain }}?\n\nIsto removerá:\n- Configuração do Nginx\n- Serviço Systemd (se aplicável)\n- Entrada no painel\n- Link simbólico na home do criador (se existir)\n- O DIRETÓRIO COMPLETO DO SITE ({{ site.path or site.workdir or 'N/A' }})\n\nESTA AÇÃO É IRREVERSÍVEL!');" class="d-inline">
+                                                 {# Botão File Manager - Visível apenas para admin ou dono #}
+                                                {% if is_admin or site.created_by_user == session.username %}
+                                                    <a href="{{ url_for('file_manager_page', site_domain=site.domain) }}" class="btn btn-outline-info" title="Gerenciador de Arquivos">
+                                                        <i class="fas fa-folder-open"></i>
+                                                    </a>
+                                                {% else %}
+                                                    {# Botão desabilitado se não tiver permissão #}
+                                                    <a href="#" class="btn btn-outline-secondary disabled" title="Gerenciador de Arquivos (Sem Permissão)" role="button" aria-disabled="true">
+                                                        <i class="fas fa-folder-open"></i>
+                                                    </a>
+                                                {% endif %}
+
+                                                {# ATENÇÃO: Mensagem de confirmação ATUALIZADA para incluir remoção de diretório #}
+                                                <form action="{{ url_for('delete_site', domain=site.domain) }}" method="post" onsubmit="return confirm('ATENÇÃO!\n\nTem certeza que deseja apagar o site {{ site.domain }}?\n\nIsto removerá:\n- Configuração do Nginx\n- Serviço Systemd (se aplicável)\n- Entrada no painel\n- Link simbólico na home do criador (se existir)\n- O DIRETÓRIO COMPLETO DO SITE ({{ site.path or site.workdir or 'N/A' }})\n\nESTA AÇÃO É IRREVERSÍVEL!');" class="d-inline">
                                                     <button type="submit" class="btn btn-outline-danger" title="Apagar Site (Ação Irreversível!)"> {# Botão outline #}
                                                          <i class="fas fa-trash-alt"></i>
                                                     </button>
