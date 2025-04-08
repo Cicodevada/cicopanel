@@ -975,6 +975,12 @@
         }
 
         async function loadDestinationFolders(destPath) {
+             // ---> CORREÇÃO: Atualiza a variável global com o caminho atual do modal <---
+             currentDestinationPath = destPath;
+             // ---> FIM DA CORREÇÃO <---
+
+             console.log("Loading destination folders for path:", destPath, "| currentDestinationPath updated to:", currentDestinationPath); // Log para depuração
+
              const listElement = document.getElementById('destinationFolderList');
              listElement.innerHTML = `<div class="text-center p-4"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Carregando...</span></div></div>`;
              document.getElementById('destinationCurrentPath').textContent = '/' + destPath;
@@ -997,7 +1003,8 @@
                          btn.innerHTML = `<i class="fas fa-folder"></i> ${folder.name}`;
                           const targetPath = (destPath ? destPath + '/' : '') + folder.name;
                          btn.onclick = () => {
-                              // currentDestinationPath = targetPath; // Atualiza o estado
+                             // ---> REMOVIDO: Não precisa mais atualizar aqui, pois loadDestinationFolders já faz isso
+                             // currentDestinationPath = targetPath;
                              loadDestinationFolders(targetPath); // Navega dentro do modal
                          };
                          btn.title = `Navegar para /${targetPath}`; // Tooltip
@@ -1023,7 +1030,8 @@
              const actionType = document.getElementById('destinationActionType').value;
              const sourcePath = document.getElementById('destinationSourcePath').value;
              const items = JSON.parse(document.getElementById('destinationItemsJson').value);
-             const destPath = currentDestinationPath; // Caminho selecionado no modal
+             const destPath = currentDestinationPath; // Caminho selecionado no modal (agora está correto!)
+             console.log("Executing copy/move. Source Path:", sourcePath, "Items:", JSON.stringify(items), "Destination Path:", destPath); // Log para depuração
 
              // Validação básica no cliente (Backend deve ter validação mais robusta)
              if (sourcePath === destPath && actionType === 'move') {
