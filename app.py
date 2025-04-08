@@ -1993,6 +1993,159 @@ def handle_copy_move(action_type):
          }), 207 # Multi-Status
 
 
+import zipfile
+import tarfile
+import gzip
+import bz2 # Para .tar.bz2
+import zipfile
+import tarfile
+import gzip
+import bz2 # Para .tar.bz2
+
+# --- Funções Auxiliares de Extração ---
+
+def is_safe_path(basedir, path_to_check):
+    """Verifica se um caminho está dentro do diretório base (prevenindo ../)."""
+    return os.path.abspath(path_to_check).startswith(os.path.abspath(basedir))
+
+# --- Rota para Extrair Arquivos ---
+
+@app.route('/api/file_manager/extract', methods=['POST'])
+@login_required
+def api_fm_extract():
+    data = request.json
+    domain = data.get('domain')
+    relative_path = data.get('path', '')
+    filename = data.get('filename')
+
+    if not domain or not filename:
+        return jsonify({"success": False, "error": "Parâmetros 'domain' e 'filename' são obrigatórios."}), 400
+
+    if not check_file_manager_permission(domain):
+        return jsonify({"success": False, "error": "Permissão negada."}), 403
+
+    base_path = get_site_base_path(domain)
+    if not base_path:
+        return jsonify({"success": False, "error": f"Caminho base não encontrado ou inválido para o site '{domain}'."}), 404
+
+    # Diretório onde o arquivo está e onde será extraído
+    target_dir_path = sanitize_path(base_path, relative_path)
+    if not target_dir_path or not os.path.isdir(target_dir_path):
+        return jsonify({"success": False, "error": "Caminho pai inválido ou não é um diretório."}), 400
+
+    # Caminho completo para o arquivo compactado
+    # Sanitiza o nome do arquivo também, por segurança extra
+    safe_filename = os.path.basename(filename)
+    archive_path = os.path.join(target_dir_path, safe_filename)
+
+    if not os.path.isfile(archive_path):
+        return jsonify({"success": False, "error": f"Arquivo compactado '{safe_filename}' não encontrado."}), 404
+
+    # Verifica permissão de escrita no diretório de destino
+    if not os.access(target_dir_path, os.W_OK):
+        print(f"Erro de permissão: Sem permissão de escrita em '{target_dir_path}' para extração.")
+        return jsonify({"success": False, "error": f"Sem permissão de escrita no diretório '{relative_path}' para extrair. Verifique as permissões."}), 403
+
+    print(f"Tentando extrair '{archive_path}' para '{target_dir_path}'")
+
+    try:
+        if safe_filename.lower().endswith('.zip'):
+            with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+                # Verificação de segurança: checa membros antes de extrair
+                for member in zip_ref.infolist():
+                    member_path = os.path.join(target_dir_path, member.filename)
+                    if not is_safe_path(target_dir_path, member_path):
+                         raise ValueError(f"Tentativa de extração insegura detectada: '{member.filename}' sairia do diretório alvo.")
+                # Se todos os membros são seguros, extrai
+                zip_ref.extractall(target_dir_path)
+            print(f"Arquivo ZIP '{safe_filename}' extraído com sucesso.")
+
+        elif safe_filename.lower().endswith(('.tar.gz', '.tgz')):
+             with tarfile.open(archive_path, 'r:gz') as tar_ref:
+                 # Verificação de segurança (Python >= 3.12 tem filtro 'data', versões anteriores precisam de checagem manual)
+                 # Adaptado de documentação: https://docs.python.org/3/library/tarfile.html#tarfile-extraction-filter
+                 def is_within_directory(directory, target):
+                      abs_directory = os.path.abspath(directory)
+                      abs_target = os.path.abspath(target)
+                      prefix = os.path.commonprefix([abs_directory, abs_target])
+                      return prefix == abs_directory
+
+                 def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+                     for member in tar.getmembers():
+                         member_path = os.path.join(path, member.name)
+                         if not is_within_directory(path, member_path):
+                             raise Exception(f"Tentativa de extração insegura detectada no TAR: {member.name}")
+                     tar.extractall(path, members, numeric_owner=numeric_owner)
+
+                 safe_extract(tar_ref, target_dir_path)
+                 # tar_ref.extractall(target_dir_path) # Versão insegura
+                 print(f"Arquivo TAR.GZ '{safe_filename}' extraído com sucesso.")
+
+        elif safe_filename.lower().endswith(('.tar.bz2', '.tbz2')):
+            with tarfile.open(archive_path, 'r:bz2') as tar_ref:
+                # Reutiliza a mesma função de extração segura
+                def is_within_directory(directory, target):
+                      abs_directory = os.path.abspath(directory)
+                      abs_target = os.path.abspath(target)
+                      prefix = os.path.commonprefix([abs_directory, abs_target])
+                      return prefix == abs_directory
+
+                def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+                    for member in tar.getmembers():
+                        member_path = os.path.join(path, member.name)
+                        if not is_within_directory(path, member_path):
+                            raise Exception(f"Tentativa de extração insegura detectada no TAR: {member.name}")
+                    tar.extractall(path, members, numeric_owner=numeric_owner)
+
+                safe_extract(tar_ref, target_dir_path)
+                # tar_ref.extractall(target_dir_path) # Versão insegura
+                print(f"Arquivo TAR.BZ2 '{safe_filename}' extraído com sucesso.")
+
+        elif safe_filename.lower().endswith('.tar'):
+            with tarfile.open(archive_path, 'r:') as tar_ref:
+                # Reutiliza a mesma função de extração segura
+                def is_within_directory(directory, target):
+                      abs_directory = os.path.abspath(directory)
+                      abs_target = os.path.abspath(target)
+                      prefix = os.path.commonprefix([abs_directory, abs_target])
+                      return prefix == abs_directory
+
+                def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+                    for member in tar.getmembers():
+                        member_path = os.path.join(path, member.name)
+                        if not is_within_directory(path, member_path):
+                            raise Exception(f"Tentativa de extração insegura detectada no TAR: {member.name}")
+                    tar.extractall(path, members, numeric_owner=numeric_owner)
+
+                safe_extract(tar_ref, target_dir_path)
+                # tar_ref.extractall(target_dir_path) # Versão insegura
+                print(f"Arquivo TAR '{safe_filename}' extraído com sucesso.")
+
+        else:
+            return jsonify({"success": False, "error": "Tipo de arquivo compactado não suportado. Use .zip, .tar, .tar.gz, .tgz, .tar.bz2, .tbz2."}), 400
+
+        return jsonify({"success": True, "message": f"Arquivo '{safe_filename}' extraído com sucesso em '{relative_path or '/'}'."})
+
+    except zipfile.BadZipFile:
+        return jsonify({"success": False, "error": f"Erro: Arquivo ZIP ('{safe_filename}') inválido ou corrompido."}), 400
+    except tarfile.TarError as e:
+         return jsonify({"success": False, "error": f"Erro ao processar arquivo TAR ('{safe_filename}'): {e}"}), 400
+    except PermissionError as e:
+        # Este erro pode ocorrer se um arquivo DENTRO do zip/tar não puder ser escrito
+        error_msg = f"Erro de permissão durante a extração de '{safe_filename}'. Verifique as permissões no diretório de destino e nos arquivos existentes."
+        print(f"{error_msg} Detalhes: {e}")
+        return jsonify({"success": False, "error": error_msg}), 403
+    except ValueError as e: # Captura o erro de caminho inseguro
+         print(f"Erro de segurança ao extrair '{safe_filename}': {e}")
+         return jsonify({"success": False, "error": f"Erro de segurança ao extrair: {e}"}), 400
+    except Exception as e:
+        error_msg = f"Erro inesperado ao extrair '{safe_filename}': {e}"
+        print(error_msg)
+        # Em produção, evite expor detalhes internos do erro ao cliente
+        # return jsonify({"success": False, "error": "Ocorreu um erro inesperado durante a extração."}), 500
+        return jsonify({"success": False, "error": error_msg}), 500 # Por enquanto, mostra o erro para debug
+
+
 # --- Rota para Reiniciar Serviço ---
 
 @app.route('/restart_service/<service_name>', methods=['POST']) # Usar POST para ações
@@ -2038,6 +2191,12 @@ def restart_service_route(service_name):
          print(f"Falha ao reiniciar o serviço '{service_name}'. Detalhes: {error_details}")
          # Retorna falha com detalhes para o Javascript
          return jsonify({"success": False, "error": f"Falha ao reiniciar o serviço: {error_details}"}), 500
+
+
+
+
+
+
 
 
 # --- Ponto de Entrada da Aplicação ---
