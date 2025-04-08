@@ -337,7 +337,7 @@
                             <th scope="col"><i class="fas fa-file-signature me-1"></i> Nome</th> <!-- Ícone diferente -->
                             <th scope="col" class="text-end"><i class="fas fa-weight-hanging me-1"></i> Tamanho</th>
                             <th scope="col" class="text-center"><i class="fas fa-calendar-alt me-1"></i> Modificado em</th>
-                            <th scope="col" class="text-center" style="width: 150px;"><i class="fas fa-bolt me-1"></i> Ações</th> <!-- Largura um pouco maior -->
+                            <th scope="col" class="text-center" style="width: 80px;"><i class="fas fa-bolt me-1"></i> Ações</th> <!-- Largura menor para dropdown -->
                         </tr>
                     </thead>
                     <tbody id="fileListBody">
@@ -629,19 +629,76 @@
                 tdModified.classList.add('text-center');
                 tdModified.textContent = formatTimestamp(file.modified);
 
-                // Ações
+                // Ações (Com Dropdown)
                 const tdActions = document.createElement('td');
-                tdActions.classList.add('text-center', 'fm-actions');
+                tdActions.classList.add('text-center'); // Remover fm-actions se não for mais usada diretamente
 
-                // HTML base das ações
-                let actionsHtml = `
-                    <a href="#" onclick="event.preventDefault(); event.stopPropagation(); triggerRename('${file.name}');" title="Renomear"><i class="fas fa-edit"></i></a>
-                    <a href="#" onclick="event.preventDefault(); event.stopPropagation(); triggerCopy(['${file.name}']);" title="Copiar Para..."><i class="fas fa-copy"></i></a>
-                    <a href="#" onclick="event.preventDefault(); event.stopPropagation(); triggerMove(['${file.name}']);" title="Mover Para..."><i class="fas fa-share-square"></i></a>
-                    <button class="text-danger" onclick="event.preventDefault(); event.stopPropagation(); deleteSingleItem('${file.name}', ${file.is_dir});" title="Excluir"><i class="fas fa-trash-alt"></i></button>
-                `;
+                // Dropdown Container
+                const dropdownDiv = document.createElement('div');
+                dropdownDiv.classList.add('dropdown');
 
-                // Lógica para adicionar botão de extrair (executada FORA do template literal)
+                // Dropdown Button (Ellipsis Icon)
+                const dropdownButton = document.createElement('button');
+                dropdownButton.classList.add('btn', 'btn-sm', 'btn-outline-secondary'); // Estilo sutil
+                dropdownButton.type = 'button';
+                // Gera um ID único baseado no nome do arquivo (simplificado, cuidado com caracteres especiais)
+                const dropdownId = `actionsDropdown-${file.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                dropdownButton.id = dropdownId;
+                dropdownButton.setAttribute('data-bs-toggle', 'dropdown');
+                dropdownButton.setAttribute('aria-expanded', 'false');
+                dropdownButton.innerHTML = '<i class="fas fa-ellipsis-v"></i>'; // Ícone de reticências verticais
+                dropdownButton.title = 'Ações';
+                // Impede que o clique no botão acione o clique na linha
+                dropdownButton.onclick = (event) => event.stopPropagation();
+                dropdownDiv.appendChild(dropdownButton);
+
+                // Dropdown Menu
+                const dropdownMenu = document.createElement('ul');
+                dropdownMenu.classList.add('dropdown-menu');
+                dropdownMenu.setAttribute('aria-labelledby', dropdownId);
+
+                // --- Dropdown Items ---
+
+                // Renomear
+                const renameLi = document.createElement('li');
+                const renameLink = document.createElement('a');
+                renameLink.classList.add('dropdown-item');
+                renameLink.href = '#';
+                renameLink.innerHTML = '<i class="fas fa-edit fa-fw me-2"></i>Renomear'; // Ícone com largura fixa e margem
+                renameLink.title = 'Renomear';
+                renameLink.onclick = (event) => {
+                    event.preventDefault(); event.stopPropagation(); triggerRename(file.name);
+                };
+                renameLi.appendChild(renameLink);
+                dropdownMenu.appendChild(renameLi);
+
+                // Copiar Para...
+                const copyLi = document.createElement('li');
+                const copyLink = document.createElement('a');
+                copyLink.classList.add('dropdown-item');
+                copyLink.href = '#';
+                copyLink.innerHTML = '<i class="fas fa-copy fa-fw me-2"></i>Copiar Para...';
+                copyLink.title = 'Copiar Para...';
+                copyLink.onclick = (event) => {
+                    event.preventDefault(); event.stopPropagation(); triggerCopy([file.name]);
+                };
+                copyLi.appendChild(copyLink);
+                dropdownMenu.appendChild(copyLi);
+
+                // Mover Para...
+                const moveLi = document.createElement('li');
+                const moveLink = document.createElement('a');
+                moveLink.classList.add('dropdown-item');
+                moveLink.href = '#';
+                moveLink.innerHTML = '<i class="fas fa-share-square fa-fw me-2"></i>Mover Para...';
+                moveLink.title = 'Mover Para...';
+                moveLink.onclick = (event) => {
+                    event.preventDefault(); event.stopPropagation(); triggerMove([file.name]);
+                };
+                moveLi.appendChild(moveLink);
+                dropdownMenu.appendChild(moveLi);
+
+                // Extrair (Condicional)
                 const lowerFileName = file.name.toLowerCase();
                 const isArchive = !file.is_dir && (
                     lowerFileName.endsWith('.zip') ||
@@ -653,14 +710,42 @@
                 );
 
                 if (isArchive) {
-                    // Adiciona o botão de extrair ao HTML existente
-                    actionsHtml += `
-                        <a href="#" onclick="event.preventDefault(); event.stopPropagation(); triggerExtract('${file.name}');" title="Extrair Aqui" class="ms-1 text-success"><i class="fas fa-box-open"></i></a>
-                    `; // Adicionado text-success aqui para cor base do ícone
+                    const extractLi = document.createElement('li');
+                    const extractLink = document.createElement('a');
+                    extractLink.classList.add('dropdown-item', 'text-success'); // Mantém a cor verde
+                    extractLink.href = '#';
+                    extractLink.innerHTML = '<i class="fas fa-box-open fa-fw me-2"></i>Extrair Aqui';
+                    extractLink.title = 'Extrair Aqui';
+                    extractLink.onclick = (event) => {
+                        event.preventDefault(); event.stopPropagation(); triggerExtract(file.name);
+                    };
+                    extractLi.appendChild(extractLink);
+                    dropdownMenu.appendChild(extractLi);
                 }
 
-                // Define o innerHTML final
-                tdActions.innerHTML = actionsHtml;
+                // Separador antes de Excluir
+                const separatorLi = document.createElement('li');
+                separatorLi.innerHTML = '<hr class="dropdown-divider">';
+                dropdownMenu.appendChild(separatorLi);
+
+                // Excluir
+                const deleteLi = document.createElement('li');
+                const deleteButton = document.createElement('button'); // Usar botão para ação perigosa
+                deleteButton.classList.add('dropdown-item', 'text-danger'); // Mantém a cor vermelha
+                deleteButton.type = 'button';
+                deleteButton.innerHTML = '<i class="fas fa-trash-alt fa-fw me-2"></i>Excluir';
+                deleteButton.title = 'Excluir';
+                deleteButton.onclick = (event) => {
+                    event.preventDefault(); event.stopPropagation(); deleteSingleItem(file.name, file.is_dir);
+                };
+                deleteLi.appendChild(deleteButton);
+                dropdownMenu.appendChild(deleteLi);
+
+                // Adiciona o Menu ao Container
+                dropdownDiv.appendChild(dropdownMenu);
+
+                // Adiciona o Dropdown à Célula
+                tdActions.appendChild(dropdownDiv);
 
                 tr.appendChild(tdCheckbox);
                 tr.appendChild(tdName);
